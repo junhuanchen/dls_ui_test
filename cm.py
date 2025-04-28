@@ -131,5 +131,3 @@ while 1:
             lcd.display(img)
             if (x<=20 and y<=20):
                 img.clear()
-
-
