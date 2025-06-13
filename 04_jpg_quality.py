@@ -25,7 +25,8 @@ def modify_image_quality(input_folder, output_folder, quality):
 
 # 示例调用
 input_folder = "03_base_jpgs"  # 替换为你的输入文件夹路径
-output_folder = "_03_base_jpgs"  # 替换为你的输出文件夹路径
-quality = 50  # 设置图像质量（1-100）
+# output_folder = "_03_base_jpgs"  # 替换为你的输出文件夹路径
+output_folder = "__03_base_jpgs"  # 替换为你的输出文件夹路径
+quality = 95  # 设置图像质量（1-100）
 
 modify_image_quality(input_folder, output_folder, quality)
