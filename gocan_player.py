@@ -1,5 +1,4 @@
 
-import random
 import time
 import heapq
 
@@ -37,6 +36,7 @@ class agent:
             if self.get_ms() >= obj[0]:
                 self.call(obj, pos)
                 break
+
 import heapq
 
 class HeapItem:
@@ -98,6 +98,7 @@ class PriorityQueue:
 
         while not pq.is_empty():
             item = pq.pop()
+
 class EventContainer:
     def __init__(self):
         # 初始化一个字典来存储事件及其概率
@@ -315,6 +316,7 @@ class CameraAIManager:
                 for _ in range(1):
                     img = sensor.snapshot()
                     result, img = self.detect_objects(img, model_info)
+                    # print(result, img)
                     if DEBUG:
                         lcd.display(img)
                     if result['have_object']:
@@ -367,20 +369,25 @@ model_list = [
         'anchors': [1.84, 1.84, 1.66, 1.66, 2.22, 2.22, 2.03, 2.03, 1.94, 1.94],
         'model_size': (224, 224),
         'threshold': 0.1
-    }
+    },
+    # {
+    #     'addr': 0x600000,
+    #     'labels': ['aeroplane', 'bicycle', 'bird', 'boat', 'bottle', 'bus', 'car', 'cat', 'chair', 'cow', 'diningtable', 'dog', 'horse', 'motorbike', 'person', 'pottedplant', 'sheep', 'sofa', 'train', 'tvmonitor'],
+    #     'anchors': [1.889, 2.5245, 2.9465, 3.94056, 3.99987, 5.3658, 5.155437, 6.92275, 6.718375, 9.01025],
+    #     'model_size': (320, 240),
+    #     'threshold': 0.1
+    # },
 ]
 
 camera_ai_manager = CameraAIManager(model_list)
 camera_ai_manager.power_on()
-
-
 
 import os
 import sensor, image, time, lcd
 import gc, sys
 
 lcd.init(freq=15000000)
-lcd.rotation(1)
+# lcd.rotation(1)
 
 class PlayerState:
     IDLE = 1
@@ -516,6 +523,7 @@ class AnimationPlayer:
     
     @staticmethod
     def unit_test():
+        global DEBUG
         # from gocan_ai import camera_ai_manager
         for model_info in camera_ai_manager.model_list:
             if not model_info['initialized']:
@@ -527,46 +535,158 @@ class AnimationPlayer:
                 camera_ai_manager.task_select += 1
                 img = sensor.snapshot()
                 result, img = camera_ai_manager.detect_objects(img, camera_ai_manager.model_list[camera_ai_manager.task_select % 2])
-                # lcd.display(img)
+                if DEBUG:
+                    lcd.display(img)
                 del img
                 camera_ai_manager.task_start = time.ticks_ms()
                 if result['have_object']:
                     del result['have_object']
                     # print(result)
                     camera_ai_manager.add_data(result)
-        return AnimationPlayer(prefix='', delay=125, callback=gocan_ai_callback)  # 设置期望延时播放间隔为125ms
+        player = AnimationPlayer(prefix='', delay=125, callback=gocan_ai_callback)  # 设置期望延时播放间隔为125ms
 
-if __name__ == "__main__":
-    
-    player = AnimationPlayer.unit_test()
-    
+        status = player.get_current_status()
+        print("Current Status: %s" % status)
+        if status['is_playing'] == False:
+            player.start(directory='/sd/_03_base_jpgs', start_file=450, end_file=None, loop=False)
+
+        # 第一次播放
+        player.start(directory='/sd/03_base_jpgs', start_file=0, end_file=10, loop=True)
+        start_time = time.ticks_ms()  # 记录开始时间
+        while time.ticks_diff(time.ticks_ms(), start_time) < 4000:  # 播放2秒
+            player.play()
+            
+        player.pause()
+        获取当前播放状态
+        # 第二次播放
+        player.start(directory='/sd/_03_base_jpgs', start_file=480, end_file=None, loop=False)
+        start_time = time.ticks_ms()  # 记录开始时间
+        while time.ticks_diff(time.ticks_ms(), start_time) < 4000:  # 播放2秒
+            player.play()
+                
+            # 获取当前播放状态
+            status = player.get_current_status()
+            print("Current Status: %s" % status)
+
+
+class Emocards:
+    def __init__(self):
+        # 定义情绪状态的描述
+        self.emotion_descriptions = {
+            ("低落", "不愉悦"): ["失落", "忧郁", "沮丧", "悲伤"],
+            ("低落", "中性"): ["平静", "淡然", "无感", "漠然"],
+            ("低落", "愉悦"): ["平和", "宁静", "安详", "满足"],
+            ("平静", "不愉悦"): ["困惑", "不满", "忧虑", "失望"],
+            ("平静", "中性"): ["稳定", "冷静", "中立", "淡然"],
+            ("平静", "愉悦"): ["舒适", "轻松", "满足", "惬意"],
+            ("激动", "不愉悦"): ["不安", "烦躁", "焦虑", "易怒"],
+            ("激动", "中性"): ["期待", "紧张", "激动", "兴奋"],
+            ("激动", "愉悦"): ["开心", "愉悦", "兴奋", "快乐"]
+        }
+        self.current_state = ("平静", "中性")  # 初始情绪状态
+        self.current_arousal = 0.5  # 初始唤醒度，范围从0.0到1.0
+        self.current_pleasantness = 0.5  # 初始愉悦度，范围从0.0到1.0
+        self.current_description = "中立"  # 初始情绪描述
+        self.random_selection = False  # 是否随机选择情绪描述
+
+    def update(self, event_effects, event):
+        """
+        根据事件更新情绪状态并获取情绪描述
+        :param event_effects: 事件表，字典格式，例如 {"happy_event": {"arousal": 0.2, "pleasantness": 0.3}}
+        :param event: 事件类型，例如 "happy_event", "sad_event", "shake", "touch", "see_person"
+        """
+        # 获取事件的影响
+        effect = event_effects.get(event, {"arousal": 0, "pleasantness": 0})
+
+        # 更新唤醒度和愉悦度，并进行边界检查
+        self.current_arousal = max(0.0, min(1.0, self.current_arousal + effect["arousal"]))
+        self.current_pleasantness = max(0.0, min(1.0, self.current_pleasantness + effect["pleasantness"]))
+
+        # 将0.0到1.0的区间映射到1、2、3
+        arousal_mapped = 1 if self.current_arousal < 0.33 else 2 if self.current_arousal < 0.67 else 3
+        pleasantness_mapped = 1 if self.current_pleasantness < 0.33 else 2 if self.current_pleasantness < 0.67 else 3
+
+        arousal_map = {1: "低落", 2: "平静", 3: "激动"}
+        pleasantness_map = {1: "不愉悦", 2: "中性", 3: "愉悦"}
+
+        arousal_state = arousal_map.get(arousal_mapped, "未知")
+        pleasantness_state = pleasantness_map.get(pleasantness_mapped, "未知")
+
+        self.current_state = (arousal_state, pleasantness_state)  # 更新当前情绪状态
+
+        # 获取情绪描述
+        descriptions = self.emotion_descriptions.get(self.current_state, ["未知", "未知", "未知", "未知"])
+
+        if self.random_selection:
+            import random
+            self.current_description = random.choice(descriptions)
+        else:
+            # 根据 (arousal_mapped + pleasantness_mapped) / 2 的值选择情绪描述
+            self.current_description = descriptions[int((arousal_mapped + pleasantness_mapped) / 2)]
+
+        return self.current_state, self.current_description
+
+    def display(self):
+        return {
+            "state": self.current_state,
+            "description": self.current_description.encode('utf-8'),
+        }
+
+    def run(self, event_effects, event):
+        """运行Emocards量表程序，返回情绪状态"""
+        state, description = self.update(event_effects, event)
+        return self.display()
+
+    def unit_test():
+        emocards = Emocards()
+        event_effects = {
+            "happy_event": {"arousal": 0.2, "pleasantness": 0.3},
+            "sad_event": {"arousal": 0.1, "pleasantness": 0.3}
+        }
+        print(emocards.display())
+        print(emocards.run(event_effects, "happy_event"))
+        print(emocards.run(event_effects, "sad_event"))
+
+def app():
+
+    for model_info in camera_ai_manager.model_list:
+        if not model_info['initialized']:
+            camera_ai_manager.load_model(model_info)
+    camera_ai_manager.task_start = time.ticks_ms()
+    camera_ai_manager.task_select = 0
+    def gocan_ai_callback(self):
+        if self.state != PlayerState.PLAYING or time.ticks_ms() - camera_ai_manager.task_start > 250:
+            camera_ai_manager.task_select += 1
+            img = sensor.snapshot()
+            result, img = camera_ai_manager.detect_objects(img, camera_ai_manager.model_list[camera_ai_manager.task_select % 2])
+            if DEBUG:
+                lcd.display(img)
+            del img
+            camera_ai_manager.task_start = time.ticks_ms()
+            if result['have_object']:
+                del result['have_object']
+                # print(result)
+                camera_ai_manager.add_data(result)
+    player = AnimationPlayer(prefix='', delay=125, callback=gocan_ai_callback)  # 设置期望延时播放间隔为125ms
+
     # player.start(directory='/sd/03_base_jpgs', start_file=0, end_file=None, loop=False)
-
-    # {
-    #     "priority": 1,
-    #     "action": "happy"
-    #     "info": "nihao"
-    # }
-
-    # {
-    #     "priority": 0,
-    #     "action": "face"
-    # }
 
     player.queue = PriorityQueue()
     player.container = EventContainer()
-
+    player.emocards = Emocards()
 
     def sensor_check(player):
         if player.uart.any():
             read_data = player.uart.readline()
             print("recv = ", read_data)
-            # 解析json传入
             try:
-                # 解析JSON数据
-                data = json.loads(read_data)
-                # 将解析后的数据放入优先队列
-                player.queue.push(data.get("priority", 2), data)
+                sensor_event = json.loads(read_data)
+                # sensor_event = {
+                #     "action": "battry_down",
+                #     "priority": 2
+                #     "value": "10"
+                # }
+                player.queue.push(sensor_event.get("priority", 2), sensor_event)
             except json.JSONDecodeError as e:
                 print("Error parsing JSON: ", e)
     player.agent.event(500, sensor_check, player)
@@ -574,35 +694,85 @@ if __name__ == "__main__":
     def ai_check(player):
         while camera_ai_manager.have_data():
             result = camera_ai_manager.get_data()
-            # print("result: ", result)
-            # camera_ai_manager.clear_data()
-            ai_event = {
-                "action": result['detections'],
-                "info": result
-            }
             player.container.update_events(result['detections'])
-            player.queue.push(ai_event.get("priority", 3), ai_event)
     player.agent.event(500, ai_check, player)
 
-    # 此处需要 优先队列 + 协议解析 + 指令执行
+    player.state = "awake" # awake, sleep, deep
+    player.life = 20 # 100 // 5 生命倒计时，从 20 到 1，当生命小于 1 时，关机
+    player.social = 10 
+
+    # 每当电量小于 2 直接关机，大于 2 小于 5 则其值为强度 0.1*（n），触发饥饿事件，影响 激动 不愉悦 的倾向状态
+    # 电量降低的时候，会发布电量降低，唤醒度下降，当 饥饿 事件 触发 的时候 处于 睡眠 ，那就进入 休眠 。
+
+    # player.xyz = [0, 0, 0] # 摇晃强度，不需要把原始数据上传，只需要考虑触发事件
+    # 当 IMU 没有剧烈变化则陆续发布睡眠事件，当调整到 "平静", "愉悦" 进入睡眠状态，从睡眠到，进一步走休眠。
+    # 摇晃的强度变化会产生轻重事件，如 摇晃，剧烈摇晃，剧烈摇晃会触发 激动，不愉悦 的倾向状态，反正会走向愉悦的安抚状态。
+
+    player.event_effects = {
+        "happy": {"arousal": 0.0, "pleasantness": 0.5},  # 开心事件
+        "sad": {"arousal": 0.0, "pleasantness": -0.5},  # 悲伤事件
+        "shake": {"arousal": 0.1, "pleasantness": -0.5},  # 摇晃
+        "touch": {"arousal": 0.0, "pleasantness": 0.5},  # 触摸
+        "see_person_positive": {"arousal": 0.5, "pleasantness": 0.0},  # 见到人（正面）
+        "see_person_negative": {"arousal": -0.1, "pleasantness": 0.0}  # 未见到人（负面）
+    }
+
+    # 实现默认的 唤醒 睡眠 休眠 状态
     def self_check(player):
         try:
             protect.keep()
-            player.container.decay_events()
-            print("time", time.time(), "Updated events:", player.container.get_events())
-            kpu.memtest()
+            # kpu.memtest() # 内存检查
+
+            # 被动自主事件，这里产生事件
+
+            # 没有事件可以随机生成事件进行测试，可以注释掉这个测试
+            # events = list(event_effects.keys())
+            # event = random.choice(events)
+            # 如果没有事件，就虚构事件，如唤醒度和愉悦度会逐级下降的方式，这需要检查情绪模块当前状态并虚构事件去触发。
+            # 自发的被动事件
+            
+            # player.emocards.update(player.event_effects, event)
+
+            # 持续触发的事件调试区域，如 AI 的事件输入
+            # print("time", time.time(), "Updated events:", player.container.get_events()) 
+            for key, value in player.container.get_events().items():
+                if value > 0.25: # 连续平均阈值
+                    ai_event = {
+                        "action": key,
+                        "value": value,
+                    }
+                    player.queue.push(ai_event.get("priority", 3), ai_event)
+            player.container.decay_events() # 衰减
+
+            # 集中处理事件，事件一定会被处理完，优先事件提前，有利于先响应
+            while player.queue.size() > 0:
+                event = player.queue.pop()
+                if event: 
+                    print("event", event.data)
+
+                    # 情感需求处理
+                    player.emocards.update(player.event_effects, event.data["action"])
+
+                    # 生理需求处理，跟电量有关的事件
+                    # player.life -= 1
+                    if player.state == "awake":
+                        player.start(directory='/sd/03_base_jpgs', start_file=0, end_file=50, loop=False)
+
+                    # 如果事件得到满足，并触发，这一轮的测试就得结束。
+            
+            # 自主状态，如果在播放，说明情绪在表达，此时不更新情绪，直到下一次的情绪匹配再表达，这是为了让它不闲着。
             if player.state != PlayerState.PLAYING:
-                if player.queue.size() > 0:
-                    event = player.queue.pop()
-                    if event:
-                        print("event: ", event.data['action'])
-                        # , 'Sadness', 'Fear', 'Neutral', 'Surprise', 'Happiness', 'Anger', 'Unknown', 'Face'
-                        if 'Disgust' in event.data['action']:
-                            # 执行happy动作
-                            print("happy")
-                            player.start(directory='/sd/03_base_jpgs', start_file=0, end_file=50, loop=False)
-            if player.queue.size() > 3:
-                player.queue.clear()
+                result = player.emocards.display()
+                
+                print("[{}, {}, {}, {}.decode()]".format(player.emocards.current_arousal, player.emocards.current_pleasantness, result["state"], result["description"]))
+
+                # player.social 需要社交值 0 - 10，没有朋友的时候，触发自娱自乐，随着强度的不同，
+                # 它的娱乐方式也不同，大于 5 可以不需要，朋友或人脸存在的时候，社交值跳进 5 持续增加，如果社交值掉到 1 以下了，就可以准备睡觉了。
+                # if ('\u5e73\u9759', '\u4e2d\u6027') == result["state"] && player.social < 5:
+                #     player.start(directory='/sd/03_base_jpgs', start_file=0, end_file=50, loop=False)
+
+            # 根据 状态
+
         except Exception as e:
             sys.print_exception(e)
             print("Error: ", e)
@@ -611,25 +781,5 @@ if __name__ == "__main__":
     while True:
         player.play()
         
-        # status = player.get_current_status()
-        # print("Current Status: %s" % status)
-        # if status['is_playing'] == False:
-        #     player.start(directory='/sd/_03_base_jpgs', start_file=450, end_file=None, loop=False)
-
-        # # 第一次播放
-        # player.start(directory='/sd/03_base_jpgs', start_file=0, end_file=10, loop=True)
-        # start_time = time.ticks_ms()  # 记录开始时间
-        # while time.ticks_diff(time.ticks_ms(), start_time) < 4000:  # 播放2秒
-        #     player.play()
-            
-        # player.pause()
-        # 获取当前播放状态
-        # # 第二次播放
-        # player.start(directory='/sd/_03_base_jpgs', start_file=480, end_file=None, loop=False)
-        # start_time = time.ticks_ms()  # 记录开始时间
-        # while time.ticks_diff(time.ticks_ms(), start_time) < 4000:  # 播放2秒
-        #     player.play()
-                
-        #     # 获取当前播放状态
-        #     status = player.get_current_status()
-        #     print("Current Status: %s" % status)
+if __name__ == "__main__":
+    app()
