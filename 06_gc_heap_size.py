@@ -1,7 +1,7 @@
 import machine
 import Maix
 
-gc_mem_size = 768*1024
+gc_mem_size = 1024*1024
 
 print('config micropython gc stack 1M (1024KB) if not')
 if Maix.utils.gc_heap_size() != gc_mem_size:
