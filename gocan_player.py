@@ -697,6 +697,41 @@ def app():
             player.container.update_events(result['detections'])
     player.agent.event(500, ai_check, player)
 
+    class Number:
+        def __init__(self, lower_bound, upper_bound, initial_value=None):
+            self.lower_bound = lower_bound
+            self.upper_bound = upper_bound
+            self.value = self._clamp(initial_value) if initial_value is not None else None
+
+        def _clamp(self, value):
+            return max(self.lower_bound, min(value, self.upper_bound))
+
+        def set(self, value):
+            self.value = self._clamp(value)
+
+        def get(self):
+            return self.value
+
+        def add(self, delta):
+            self.value = self._clamp(self.value + delta)
+
+        def sub(self, delta):
+            self.value = self._clamp(self.value - delta)
+
+    # 示例用法
+        def unit_test():
+            num = Number(0, 100, 50)
+            print("初始值：", num.get())
+
+            num.add(20)
+            print("增加20后：", num.get())
+
+            num.sub(30)
+            print("减少30后：", num.get())
+
+            num.set(150)
+            print("设置超出边界值150后：", num.get())
+
     class gocan_base:
 
         event_effects = {
@@ -708,26 +743,21 @@ def app():
             "see_person_negative": {"arousal": -0.1, "pleasantness": 0.0}  # 未见到人（负面）
         }
 
-        state = "awake" # awake, sleep, deep
-        life = 10 # 100 // 5 生命倒计时，从 20 到 1，当生命小于 1 时，关机
-        social = 10 # 社交指数，从 0 到 10，当社交指数小于 1 时，准备睡觉
+        state_list = ["deep", "sleep", "awake", "bored", "express"]
+        state  = Number(0, 4, 2)   # 反馈状态，用于标记情绪表达的结果，以及唤醒或休眠的状态值，这样可以用作下一次的状态参考
+        life   = Number(0, 10, 10) # 生命值，从 20 到 1，当生命小于 1 时，关机，刚醒来时，没有同步电量的情况下，会假定满电量
+        social = Number(0, 10, 10) # 社交指数，从 0 到 10，当社交指数小于 1 时，准备睡觉，如果有人出现，社交指数会升到 5 ，如果到 10 则触发专属彩蛋动画。
 
-        # 每当电量小于 2 直接关机，大于 2 小于 5 则其值为强度 0.1*（n），触发饥饿事件，影响 激动 不愉悦 的倾向状态
+        # 每当电量小于 2 会期望关机，大于 2 小于 5 则其值为强度 0.1*（n），触发饥饿事件，影响 激动 不愉悦 的倾向状态
         # 电量降低的时候，会发布电量降低，唤醒度下降，当 饥饿 事件 触发 的时候 处于 睡眠 ，那就进入 休眠 。
 
         # player.xyz = [0, 0, 0] # 摇晃强度，不需要把原始数据上传，只需要考虑触发事件
         # 当 IMU 没有剧烈变化则陆续发布睡眠事件，当调整到 "平静", "愉悦" 进入睡眠状态，从睡眠到，进一步走休眠。
         # 摇晃的强度变化会产生轻重事件，如 摇晃，剧烈摇晃，剧烈摇晃会触发 激动，不愉悦 的倾向状态，反正会走向愉悦的安抚状态。
 
-        # 被动自主事件，这里产生事件
-
-        # 实现默认的 唤醒 睡眠 休眠 状态
-
-        # player.social 需要社交值 0 - 10，没有朋友的时候，触发自娱自乐，随着强度的不同，
+        # player.social 需要社交值 0 - 10，没有朋友的时候，触发自娱自乐，随着强度的不同，不同程度不同动画效果。
         # 它的娱乐方式也不同，大于 5 可以不需要，朋友或人脸存在的时候，社交值跳进 5 持续增加，如果社交值掉到 1 以下了，就可以准备睡觉了。
         
-        # player.emocards.update(player.event_effects, event)
-
     robot = gocan_base()
 
     def self_check(player):
@@ -745,10 +775,11 @@ def app():
                         "value": value,
                     }
                     player.queue.push(ai_event.get("priority", 3), ai_event)
+
             player.container.decay_events() # 衰减
 
-            # 定期发送恢复精力的事件，如充电，运动，睡眠等了，
-
+            robot.social.sub(1) # 社交值会持续衰减，但可以通过 AI 事件来增加，当社交值低于 1 时，会进入睡眠
+    
             # ==================== 事件处理区域 ====================
 
             # 集中处理事件，事件一定会被处理完，串口事件优先 AI 事件，有利于先响应 
@@ -756,36 +787,57 @@ def app():
                 event = player.queue.pop()
                 if event: 
                     print("event", event.data)
-
+                    if event.data["action"] == "Face" or event.data["action"] == "shake": # 区分走路和运动。
+                        robot.social.add(5) # 强烈摇晃 或 看到人，社交值拉爆
+                    # 生理需求处理
+                    if event.data["action"] == "battry_down" or event.data["action"] == "battry_up":
+                        robot.life.set(event.data["value"]) # 电量事件，直接设置电量
                     # 情感需求处理
                     player.emocards.update(gocan_base.event_effects, event.data["action"])
 
                     # 这一轮的情绪表达就符合预期了，可以进入下一轮了
 
-                    # 如何界定 计算你
-
             # ==================== 机身状态区域 ====================
 
             #### 状态主要有 state，life，social，emocards
 
+            if robot.life.get() < 1 or robot.social.get() < 1:
+                robot.state.sub(1) # 转睡眠状态，电量低，社交低
+            elif robot.social.get() < 3:
+                robot.state.set(4) # 转去无聊状态，社交值=低，想独处
+            elif robot.social.get() > 7:
+                robot.state.set(5) # 转去表达状态，社交值高，想表达
+            else:
+                robot.state.set(2) # 转去清醒状态，社交值正常，想自娱自乐
 
+            # 物理状态，温度冷热、湿度、电量、震动等基础安全感，
 
-            # ==================== 情感表达区域 ====================
+            # ==================== 机器人表达区域 ====================
+            if robot.state.get() == 0:
+                print("deep sleep")
+                os.exit(0) # 深度睡眠，直接关机
+            elif robot.state.get() == 1:
+                print("sleep")
+                player.start(directory='/sd/03_base_jpgs', start_file=0, end_file=50, loop=False)
+            elif robot.state.get() > 2:
+                # 社交值高的时候，可以打断播放，情绪表达之间是平级的。，社交值低的时候
+                if robot.state.get() == 5:
+                    # 想表达，直接转入招牌动作
+                if player.state != PlayerState.PLAYING:
+                    result = player.emocards.display()
+                    # 生理需求处理
+                    # player.life -= 1
+                    if gocan_base.state == "awake":
+                        player.start(directory='/sd/03_base_jpgs', start_file=0, end_file=50, loop=False)
 
-            # 自主状态，如果在播放，说明情绪在表达，此时不更新情绪，直到下一次的情绪匹配再表达，这是为了让它不闲着。
-            if player.state != PlayerState.PLAYING:
-                result = player.emocards.display()
-            
-                # 生理需求处理
-                # player.life -= 1
-                if gocan_base.state == "awake":
-                    player.start(directory='/sd/03_base_jpgs', start_file=0, end_file=50, loop=False)
+                    print("[{}, {}, {}, {}.decode()]".format(player.emocards.current_arousal, player.emocards.current_pleasantness, result["state"], result["description"]))
 
-                print("[{}, {}, {}, {}.decode()]".format(player.emocards.current_arousal, player.emocards.current_pleasantness, result["state"], result["description"]))
-
-                # if ('\u5e73\u9759', '\u4e2d\u6027') == result["state"] && player.social < 5:
-                #     player.start(directory='/sd/03_base_jpgs', start_file=0, end_file=50, loop=False)
-
+                    # 如果情绪是中立情况，则根据社交状态表达
+                    
+                    # if ('\u5e73\u9759', '\u4e2d\u6027') == result["state"] && player.social < 5:
+                    #     player.start(directory='/sd/03_base_jpgs', start_file=0, end_file=50, loop=False)
+            else:
+                print("nothing")
             # ==================== 更新状态区域 ====================
 
         except Exception as e:
