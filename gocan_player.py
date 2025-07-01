@@ -417,39 +417,39 @@ class AnimationPlayer:
 
     def _load_files(self, directory, start_file=0, end_file=None):
         """加载指定目录中的文件"""
-        try:
-            files = os.listdir(directory)
-            self.files = [file for file in files if file.startswith(self.prefix) and file.endswith('.jpg')]
-            if not self.files:
-                raise ValueError("No files found with the specified prefix in the current directory.")
-            file_numbers = [int(file[len(self.prefix):-4]) for file in self.files]
-            if start_file not in file_numbers:
-                raise ValueError("Start file %s not found in the current directory." % start_file)
-            if end_file is not None and end_file not in file_numbers:
-                raise ValueError("End file %s not found in the current directory." % end_file)
-            if end_file is not None and start_file > end_file:
-                raise ValueError("Start file number must be less than or equal to end file number.")
-            start_index = file_numbers.index(start_file)
-            if end_file is None:
-                self.files = self.files[start_index:]
-            else:
-                end_index = file_numbers.index(end_file) + 1
-                self.files = self.files[start_index:end_index]
-            self.current_index = 0
-            self.current_directory = directory
-        except Exception as e:
-            sys.print_exception(e)
+        files = os.listdir(directory)
+        self.files = [file for file in files if file.startswith(self.prefix) and file.endswith('.jpg')]
+        if not self.files:
+            raise ValueError("No files found with the specified prefix in the current directory.")
+        file_numbers = [int(file[len(self.prefix):-4]) for file in self.files]
+        if start_file not in file_numbers:
+            raise ValueError("Start file %s not found in the current directory." % start_file)
+        if end_file is not None and end_file not in file_numbers:
+            raise ValueError("End file %s not found in the current directory." % end_file)
+        if end_file is not None and start_file > end_file:
+            raise ValueError("Start file number must be less than or equal to end file number.")
+        start_index = file_numbers.index(start_file)
+        if end_file is None:
+            self.files = self.files[start_index:]
+        else:
+            end_index = file_numbers.index(end_file) + 1
+            self.files = self.files[start_index:end_index]
+        self.current_index = 0
+        self.current_directory = directory
 
     def start(self, directory, start_file=0, end_file=None, loop=False):
         """开始播放动画"""
-        if self.state != PlayerState.IDLE:
-            self.pause()
-        self._load_files(directory, start_file, end_file)
-        self.loop = loop
-        self.state = PlayerState.PLAYING
-        self.task_start = time.ticks_ms()
-        self.play_start = time.ticks_ms()
-
+        try:
+            print(directory)
+            if self.state != PlayerState.IDLE:
+                self.pause()
+            self._load_files(directory, start_file, end_file)
+            self.loop = loop
+            self.state = PlayerState.PLAYING
+            self.task_start = time.ticks_ms()
+            self.play_start = time.ticks_ms()
+        except Exception as e:
+            sys.print_exception(e)
     def pause(self):
         """停止播放动画"""
         self.state = PlayerState.PAUSED
@@ -582,6 +582,7 @@ class Emocards:
             ("激动", "中性"): ["期待", "紧张", "激动", "兴奋"],
             ("激动", "愉悦"): ["开心", "愉悦", "兴奋", "快乐"]
         }
+        self.current_mapped = (2, 2)  # 初始情绪状态映射
         self.current_state = ("平静", "中性")  # 初始情绪状态
         self.current_arousal = 0.5  # 初始唤醒度，范围从0.0到1.0
         self.current_pleasantness = 0.5  # 初始愉悦度，范围从0.0到1.0
@@ -604,7 +605,8 @@ class Emocards:
         # 将0.0到1.0的区间映射到1、2、3
         arousal_mapped = 1 if self.current_arousal < 0.33 else 2 if self.current_arousal < 0.67 else 3
         pleasantness_mapped = 1 if self.current_pleasantness < 0.33 else 2 if self.current_pleasantness < 0.67 else 3
-
+        self.current_mapped = (arousal_mapped, pleasantness_mapped)
+        
         arousal_map = {1: "低落", 2: "平静", 3: "激动"}
         pleasantness_map = {1: "不愉悦", 2: "中性", 3: "愉悦"}
 
@@ -697,6 +699,22 @@ def app():
             player.container.update_events(result['detections'])
     player.agent.event(500, ai_check, player)
 
+    def ai_update(player):
+        # kpu.memtest()
+        protect.keep()
+
+        # 持续触发的事件调试区域，如 AI 的事件输入
+        # print("time", time.time(), "Updated events:", player.container.get_events()) 
+        for key, value in player.container.get_events().items():
+            if value > 0.25: # 连续平均阈值
+                ai_event = {
+                    "action": key,
+                    "value": value,
+                }
+                player.queue.push(ai_event.get("priority", 3), ai_event)
+        player.container.decay_events() # 衰减
+    player.agent.event(1000, ai_update, player)
+
     class Number:
         def __init__(self, lower_bound, upper_bound, initial_value=None):
             self.lower_bound = lower_bound
@@ -732,19 +750,26 @@ def app():
             num.set(150)
             print("设置超出边界值150后：", num.get())
 
+
     class gocan_base:
+        # ==================== 01 事件定义区域 ====================
 
         event_effects = {
-            "happy": {"arousal": 0.0, "pleasantness": 0.5},  # 开心事件
-            "sad": {"arousal": 0.0, "pleasantness": -0.5},  # 悲伤事件
             "shake": {"arousal": 0.1, "pleasantness": -0.5},  # 摇晃
             "touch": {"arousal": 0.0, "pleasantness": 0.5},  # 触摸
-            "see_person_positive": {"arousal": 0.5, "pleasantness": 0.0},  # 见到人（正面）
-            "see_person_negative": {"arousal": -0.1, "pleasantness": 0.0}  # 未见到人（负面）
+            "sleep": {"arousal": -0.5, "pleasantness": 0.0},  # 触摸
+            "Face": {"arousal": 0.5, "pleasantness": 0.5},  # 人脸
+            "Disgust": {"arousal": -0.3, "pleasantness": -0.4},  # 厌恶
+            "Sadness": {"arousal": -0.2, "pleasantness": -0.4},  # 悲伤
+            "Fear": {"arousal": -0.4, "pleasantness": -0.4},  # 恐惧
+            "Neutral": {"arousal": 0.0, "pleasantness": 0.0},  # 中性
+            "Surprise": {"arousal": 0.3, "pleasantness": 0.2},  # 惊讶
+            "Happiness": {"arousal": 0.2, "pleasantness": 0.5},  # 快乐
+            "Anger": {"arousal": 0.5, "pleasantness": -0.5}  # 愤怒
         }
 
-        state_list = ["deep", "sleep", "awake", "bored", "express"]
-        state  = Number(0, 4, 2)   # 反馈状态，用于标记情绪表达的结果，以及唤醒或休眠的状态值，这样可以用作下一次的状态参考
+        current_list = ["deep", "sleep", "awake", "bored", "express"]
+        current = Number(0, 4, 2)  # 反馈状态，用于标记情绪表达的结果，以及唤醒或休眠的状态值，这样可以用作下一次的状态参考
         life   = Number(0, 10, 10) # 生命值，从 20 到 1，当生命小于 1 时，关机，刚醒来时，没有同步电量的情况下，会假定满电量
         social = Number(0, 10, 10) # 社交指数，从 0 到 10，当社交指数小于 1 时，准备睡觉，如果有人出现，社交指数会升到 5 ，如果到 10 则触发专属彩蛋动画。
 
@@ -762,25 +787,7 @@ def app():
 
     def self_check(player):
         try:
-            # ==================== 事件发布区域 ====================
-            # kpu.memtest()
-            protect.keep()
-
-            # 持续触发的事件调试区域，如 AI 的事件输入
-            print("time", time.time(), "Updated events:", player.container.get_events()) 
-            for key, value in player.container.get_events().items():
-                if value > 0.10: # 连续平均阈值
-                    ai_event = {
-                        "action": key,
-                        "value": value,
-                    }
-                    player.queue.push(ai_event.get("priority", 3), ai_event)
-
-            player.container.decay_events() # 衰减
-
-            robot.social.sub(1) # 社交值会持续衰减，但可以通过 AI 事件来增加，当社交值低于 1 时，会进入睡眠
-    
-            # ==================== 事件处理区域 ====================
+            # ==================== 02 事件处理区域 ====================
 
             # 集中处理事件，事件一定会被处理完，串口事件优先 AI 事件，有利于先响应 
             while player.queue.size() > 0:
@@ -788,7 +795,7 @@ def app():
                 if event: 
                     print("event", event.data)
                     if event.data["action"] == "Face" or event.data["action"] == "shake": # 区分走路和运动。
-                        robot.social.add(5) # 强烈摇晃 或 看到人，社交值拉爆
+                        robot.social.add(3) # 强烈摇晃 或 看到人，社交值拉爆
                     # 生理需求处理
                     if event.data["action"] == "battry_down" or event.data["action"] == "battry_up":
                         robot.life.set(event.data["value"]) # 电量事件，直接设置电量
@@ -797,53 +804,75 @@ def app():
 
                     # 这一轮的情绪表达就符合预期了，可以进入下一轮了
 
-            # ==================== 机身状态区域 ====================
+            # ==================== 03 机身状态区域 ====================
 
-            #### 状态主要有 state，life，social，emocards
+            #### 状态主要有 current，life，social，emocards
 
-            if robot.life.get() < 1 or robot.social.get() < 1:
-                robot.state.sub(1) # 转睡眠状态，电量低，社交低
-            elif robot.social.get() < 3:
-                robot.state.set(4) # 转去无聊状态，社交值=低，想独处
-            elif robot.social.get() > 7:
-                robot.state.set(5) # 转去表达状态，社交值高，想表达
+            robot.social.sub(1) # 社交值会持续衰减，但可以通过 AI 事件来增加，当社交值低于 1 时，会进入睡眠
+    
+            if robot.current.get() == 0:
+                if robot.social.get() < 1:
+                    print("deep sleep")
+                    while True:
+                        pass
+                elif robot.social.get() > 3:
+                    robot.current.set(3) # 阻止进入睡眠
+            elif robot.current.get() == 1:
+                robot.social.set(3) # 进入睡眠时，还要再来一轮，才能正式进入睡眠
+                robot.current.set(0)
+                print("into sleep")
+                ai_event = {
+                    "action": "sleep",
+                }
+                player.queue.push(ai_event.get("priority", 3), ai_event)
+            elif robot.life.get() < 1 or robot.social.get() < 1:
+                robot.current.set(1) # 转睡眠状态，电量低，社交低
+            elif robot.current.get():
+                if robot.social.get() < 3:
+                    robot.current.set(2) # 社交值=低 转去清醒状态，想独处
+                elif robot.social.get() > 8:
+                    robot.current.set(4) # 转去表达状态，社交值高，想表达
+                else:
+                    robot.current.set(3) # 转去无聊状态，社交值正常，想自娱自乐
             else:
-                robot.state.set(2) # 转去清醒状态，社交值正常，想自娱自乐
-
+                pass
             # 物理状态，温度冷热、湿度、电量、震动等基础安全感，
 
-            # ==================== 机器人表达区域 ====================
-            if robot.state.get() == 0:
-                print("deep sleep")
-                os.exit(0) # 深度睡眠，直接关机
-            elif robot.state.get() == 1:
+            # ==================== 04 机器人表达区域 ====================
+            if robot.current.get() == 1:
                 print("sleep")
-                player.start(directory='/sd/03_base_jpgs', start_file=0, end_file=50, loop=False)
-            elif robot.state.get() > 2:
-                # 社交值高的时候，可以打断播放，情绪表达之间是平级的。，社交值低的时候
-                if robot.state.get() == 5:
-                    # 想表达，直接转入招牌动作
+                ai_event = {
+                    "action": "sleep",
+                }
+                player.queue.push(ai_event.get("priority", 3), ai_event)
+                player.start(directory='/sd/sleep', start_file=0, end_file=50, loop=False)
+            # 社交值高的时候，可以打断播放，情绪表达之间是平级的。，社交值低的时候
+            elif robot.current.get() == 4: # 社交强的专属动画效果，因宠物性格而定。
+                player.start(directory='/sd/super', start_file=0, end_file=50, loop=False)
+                robot.social.sub(2)
+            else:
                 if player.state != PlayerState.PLAYING:
                     result = player.emocards.display()
-                    # 生理需求处理
-                    # player.life -= 1
-                    if gocan_base.state == "awake":
-                        player.start(directory='/sd/03_base_jpgs', start_file=0, end_file=50, loop=False)
-
-                    print("[{}, {}, {}, {}.decode()]".format(player.emocards.current_arousal, player.emocards.current_pleasantness, result["state"], result["description"]))
-
-                    # 如果情绪是中立情况，则根据社交状态表达
-                    
-                    # if ('\u5e73\u9759', '\u4e2d\u6027') == result["state"] && player.social < 5:
-                    #     player.start(directory='/sd/03_base_jpgs', start_file=0, end_file=50, loop=False)
-            else:
-                print("nothing")
-            # ==================== 更新状态区域 ====================
-
+                    # print("[{}, {}, {}, {}.decode()]".format(player.emocards.current_arousal, player.emocards.current_pleasantness, result["state"], result["description"]))
+                    # 如果情绪是中立情况，则根据社交值表达
+                    if ('\u5e73\u9759', '\u4e2d\u6027') == result["state"]:
+                        if robot.current.get() == 2:
+                            player.start(directory='/sd/awake', start_file=0, end_file=50, loop=False)
+                        elif robot.current.get() == 3:
+                            player.start(directory='/sd/bored', start_file=0, end_file=50, loop=False)
+                        else:
+                            pass
+                    # 其他情绪，目前没有那么多情绪动画，只能挑典型动画
+                    elif ('\u611f\u52a8', '\u611f\u52a8') == result["state"]:
+                        print("emotion")
+                
+            # ==================== 05 反馈状态区域 ====================
+            print("emocards : {} state : {}, life : {}, social : {}".format(player.emocards.current_mapped, robot.current.get(), robot.life.get(), robot.social.get()))
+        
         except Exception as e:
             sys.print_exception(e)
             print("Error: ", e)
-    player.agent.event(1000, self_check, player)
+    player.agent.event(3000, self_check, player)
 
     while True:
         player.play()
