@@ -415,13 +415,17 @@ class AnimationPlayer:
         self.uart = UART(UART.UART1, 115200, 8, 1, 0, timeout=1000, read_buf_len=4096)
 
 
-    def _load_files(self, directory, start_file=0, end_file=None):
+    def _load_files(self, directory, start_file=1, end_file=None):
         """加载指定目录中的文件"""
         files = os.listdir(directory)
+        parts = directory.split('/')
+        self.prefix = parts[-1]
         self.files = [file for file in files if file.startswith(self.prefix) and file.endswith('.jpg')]
         if not self.files:
             raise ValueError("No files found with the specified prefix in the current directory.")
+        # print(self.files)
         file_numbers = [int(file[len(self.prefix):-4]) for file in self.files]
+        # print(file_numbers)
         if start_file not in file_numbers:
             raise ValueError("Start file %s not found in the current directory." % start_file)
         if end_file is not None and end_file not in file_numbers:
@@ -437,7 +441,7 @@ class AnimationPlayer:
         self.current_index = 0
         self.current_directory = directory
 
-    def start(self, directory, start_file=0, end_file=None, loop=False):
+    def start(self, directory, start_file=1, end_file=None, loop=False):
         """开始播放动画"""
         try:
             print(directory)
@@ -836,6 +840,7 @@ def app():
                     robot.current.set(3) # 转去无聊状态，社交值正常，想自娱自乐
             else:
                 pass
+
             # 物理状态，温度冷热、湿度、电量、震动等基础安全感，
 
             # ==================== 04 机器人表达区域 ====================
@@ -845,10 +850,10 @@ def app():
                     "action": "sleep",
                 }
                 player.queue.push(ai_event.get("priority", 3), ai_event)
-                player.start(directory='/sd/sleep', start_file=0, end_file=50, loop=False)
+                player.start(directory='/sd/sleep', loop=False)
             # 社交值高的时候，可以打断播放，情绪表达之间是平级的。，社交值低的时候
             elif robot.current.get() == 4: # 社交强的专属动画效果，因宠物性格而定。
-                player.start(directory='/sd/super', start_file=0, end_file=50, loop=False)
+                player.start(directory='/sd/super', loop=False)
                 robot.social.sub(2)
             else:
                 if player.state != PlayerState.PLAYING:
@@ -857,9 +862,9 @@ def app():
                     # 如果情绪是中立情况，则根据社交值表达
                     if ('\u5e73\u9759', '\u4e2d\u6027') == result["state"]:
                         if robot.current.get() == 2:
-                            player.start(directory='/sd/awake', start_file=0, end_file=50, loop=False)
+                            player.start(directory='/sd/awake', loop=True)
                         elif robot.current.get() == 3:
-                            player.start(directory='/sd/bored', start_file=0, end_file=50, loop=False)
+                            player.start(directory='/sd/bored', loop=True)
                         else:
                             pass
                     # 其他情绪，目前没有那么多情绪动画，只能挑典型动画
