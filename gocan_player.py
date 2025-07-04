@@ -527,13 +527,13 @@ class AnimationPlayer:
     @staticmethod
     def unit_test():
         global DEBUG
-        # from gocan_ai import camera_ai_manager
+        # from robot_ai import camera_ai_manager
         for model_info in camera_ai_manager.model_list:
             if not model_info['initialized']:
                 camera_ai_manager.load_model(model_info)
         camera_ai_manager.task_start = time.ticks_ms()
         camera_ai_manager.task_select = 0
-        def gocan_ai_callback(self):
+        def robot_ai_callback(self):
             if self.state != PlayerState.PLAYING or time.ticks_ms() - camera_ai_manager.task_start > 250:
                 camera_ai_manager.task_select += 1
                 img = sensor.snapshot()
@@ -546,7 +546,7 @@ class AnimationPlayer:
                     del result['have_object']
                     # print(result)
                     camera_ai_manager.add_data(result)
-        player = AnimationPlayer(prefix='', delay=125, callback=gocan_ai_callback)  # 设置期望延时播放间隔为125ms
+        player = AnimationPlayer(prefix='', delay=125, callback=robot_ai_callback)  # 设置期望延时播放间隔为125ms
 
         status = player.get_current_status()
         print("Current Status: %s" % status)
@@ -659,7 +659,7 @@ def app():
             camera_ai_manager.load_model(model_info)
     camera_ai_manager.task_start = time.ticks_ms()
     camera_ai_manager.task_select = 0
-    def gocan_ai_callback(self):
+    def robot_ai_callback(self):
         if self.state != PlayerState.PLAYING or time.ticks_ms() - camera_ai_manager.task_start > 250:
             camera_ai_manager.task_select += 1
             img = sensor.snapshot()
@@ -673,7 +673,7 @@ def app():
                 # print(result)
                 camera_ai_manager.add_data(result)
 
-    player = AnimationPlayer(prefix='', delay=125, callback=gocan_ai_callback)  # 设置期望延时播放间隔为125ms
+    player = AnimationPlayer(prefix='', delay=125, callback=robot_ai_callback)  # 设置期望延时播放间隔为125ms
 
     # player.start(directory='/sd/03_base_jpgs', start_file=0, end_file=None, loop=False)
 
@@ -755,7 +755,7 @@ def app():
             print("设置超出边界值150后：", num.get())
 
 
-    class gocan_base:
+    class robot_base:
         # ==================== 01 事件定义区域 ====================
 
         event_effects = {
@@ -787,7 +787,7 @@ def app():
         # player.social 需要社交值 0 - 10，没有朋友的时候，触发自娱自乐，随着强度的不同，不同程度不同动画效果。
         # 它的娱乐方式也不同，大于 5 可以不需要，朋友或人脸存在的时候，社交值跳进 5 持续增加，如果社交值掉到 1 以下了，就可以准备睡觉了。
         
-    robot = gocan_base()
+    robot = robot_base()
 
     def self_check(player):
         try:
@@ -804,7 +804,7 @@ def app():
                     if event.data["action"] == "battry_down" or event.data["action"] == "battry_up":
                         robot.life.set(event.data["value"]) # 电量事件，直接设置电量
                     # 情感需求处理
-                    player.emocards.update(gocan_base.event_effects, event.data["action"])
+                    player.emocards.update(robot_base.event_effects, event.data["action"])
 
                     # 这一轮的情绪表达就符合预期了，可以进入下一轮了
 
@@ -850,7 +850,7 @@ def app():
                     "action": "sleep",
                 }
                 player.queue.push(ai_event.get("priority", 3), ai_event)
-                player.start(directory='/sd/sleep', loop=False)
+                player.start(directory='/sd/sleep', loop=True)
             # 社交值高的时候，可以打断播放，情绪表达之间是平级的。，社交值低的时候
             elif robot.current.get() == 4: # 社交强的专属动画效果，因宠物性格而定。
                 player.start(directory='/sd/super', loop=False)
