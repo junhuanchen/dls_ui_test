@@ -711,36 +711,37 @@ def app():
             self.lower_bound = lower_bound
             self.upper_bound = upper_bound
             self.value = self._clamp(initial_value) if initial_value is not None else None
+            self.oalue = None  # 只保存最后一次的旧值
 
         def _clamp(self, value):
             return max(self.lower_bound, min(value, self.upper_bound))
 
         def set(self, value):
-            self.value = self._clamp(value)
+            clamped_value = self._clamp(value)
+            if clamped_value != self.value:
+                self.oalue = self.value  # 保存当前值为旧值
+                self.value = clamped_value
 
         def get(self):
             return self.value
 
         def add(self, delta):
-            self.value = self._clamp(self.value + delta)
+            new_value = self._clamp(self.value + delta)
+            if new_value != self.value:
+                self.oalue = self.value  # 保存当前值为旧值
+                self.value = new_value
 
         def sub(self, delta):
-            self.value = self._clamp(self.value - delta)
+            new_value = self._clamp(self.value - delta)
+            if new_value != self.value:
+                self.oalue = self.value  # 保存当前值为旧值
+                self.value = new_value
 
-    # 示例用法
-        def unit_test():
-            num = Number(0, 100, 50)
-            print("初始值：", num.get())
+        def old(self):  # 获取最后一次的旧值
+            return self.oalue
 
-            num.add(20)
-            print("增加20后：", num.get())
-
-            num.sub(30)
-            print("减少30后：", num.get())
-
-            num.set(150)
-            print("设置超出边界值150后：", num.get())
-
+        def update(self):  # 主动更新旧值
+            self.oalue = self.value
 
     class robot_base:
         def __init__(self):
@@ -867,7 +868,8 @@ def app():
                 player.queue.push(ai_event.get("priority", 3), ai_event)
                 player.start(directory=robot.get_path('sleep'), loop=True)
             # 社交值高的时候，可以打断播放，情绪表达之间是平级的。，社交值低的时候
-            elif robot.current.get() == 4: # 社交强的专属动画效果，因宠物性格而定。
+            elif robot.current.get() == 4 and robot.current.old() != 4: # 社交强的专属动画效果，因宠物性格而定。
+                robot.current.update()
                 player.start(directory=robot.get_path('super'), loop=False)
                 robot.social.sub(2) # 社交值消耗
             else:
