@@ -1,4 +1,5 @@
 import os
+import shutil
 import subprocess
 import argparse
 from PIL import Image
@@ -61,7 +62,7 @@ def modify_image_quality(input_folder, output_folder, quality):
                 # 保存图像并设置质量
                 img.save(output_path, format="JPEG", quality=quality)
                 print(f"Processed {filename} with quality {quality}")
-
+                
 def main():
     # 创建命令行参数解析器
     parser = argparse.ArgumentParser(description="从文件夹中获取所有视频文件并转换为 JPG 图片序列，然后调整 JPG 图像质量。")
@@ -73,9 +74,10 @@ def main():
     # 解析命令行参数
     args = parser.parse_args()
     
-    # 确保输出文件夹存在
-    if not os.path.exists(args.output_base_folder):
-        os.makedirs(args.output_base_folder)
+    # 确保输出文件夹存在，如果存在则先删除再创建
+    if os.path.exists(args.output_base_folder):
+        shutil.rmtree(args.output_base_folder)  # 删除已存在的文件夹
+    os.makedirs(args.output_base_folder)  # 创建新的文件夹
     
     # 遍历输入文件夹中的所有视频文件
     for filename in os.listdir(args.input_folder):
