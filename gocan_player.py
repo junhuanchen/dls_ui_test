@@ -5,11 +5,13 @@ import gc, sys
 
 from gocan import protect, AnimationPlayer, EventContainer, Emocards, PriorityQueue, camera_ai_manager, PlayerState, DEBUG
 
-# lcd.init(freq=15000000)
+# cube
+lcd.init(freq=15000000, type=2, invert=True, offset_w0=0, offset_h0=0, offset_w1=0, offset_h1=0, width=240, height=240, rst=37, dcx=38, ss=36, clk=39)
 # lcd.rotation(1)
 
-lcd.init(freq=15000000, offset_w0=20, offset_h0=0, offset_w1=20, offset_h1=0, width=280, height=240, rst=39, dcx=38, ss=37, clk=36)
-lcd.direction(lcd.YX_RLDU)
+# gocan
+# lcd.init(freq=15000000, offset_w0=20, offset_h0=0, offset_w1=20, offset_h1=0, width=280, height=240, rst=39, dcx=38, ss=37, clk=36)
+# lcd.direction(lcd.YX_RLDU)
 
 def app():
 
