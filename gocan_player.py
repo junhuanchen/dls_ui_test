@@ -60,14 +60,15 @@ def app():
                 player.queue.push(sensor_event.get("priority", 2), sensor_event)
             except json.JSONDecodeError as e:
                 print("Error parsing JSON: ", e)
-    player.agent.event(500, sensor_check, player)
+    player.agent.event(250, sensor_check, player)
 
     def ai_check(player):
         player.container.decay_events() # 衰减事件
         if camera_ai_manager.have_data():
             result = camera_ai_manager.get_data()
+            # print(result)
             player.container.update_events(result['detections'])
-    player.agent.event(500, ai_check, player)
+    player.agent.event(250, ai_check, player)
 
     class robot_base:
         def __init__(self):
@@ -105,7 +106,7 @@ def app():
 
         def get_path(self, obj=""):
             tmp = "{}/{}".format(self.base_path, obj)
-            print("get_path", tmp)
+            # print("get_path", tmp)
             return tmp
             
         def get_current_path(self):
@@ -136,8 +137,8 @@ def app():
             if event: 
                 print("event", event.data)
                 if event.data["action"] == "Face" or event.data["action"] == "shake": # 区分走路和运动。
-                    if player.state != PlayerState.PLAYING:
-                        player.start(directory=robot.get_path('awake'), loop=False)
+                    # if player.state != PlayerState.PLAYING:
+                    #     player.start(directory=robot.get_path('awake'), loop=False)
                     robot.social.add(2) # 强烈摇晃 或 看到人，社交值拉爆
                 # 生理需求处理
                 if event.data["action"] == "battry_down" or event.data["action"] == "battry_up":
@@ -152,6 +153,7 @@ def app():
     def robot_check(player):
         try:
             # ==================== 03 机身状态区域 ====================
+            # 物理状态，温度冷热、湿度、电量、震动等基础安全感，
 
             #### 状态主要有 current，life，social，emocards
 
@@ -159,7 +161,7 @@ def app():
     
             if robot.current.get() == 0:
                 if robot.social.get() < 1:
-                    print("deep sleep")
+                    # print("deep sleep")
                     player.start(directory=robot.get_path('deep'), loop=True)
                     # 串口发送关机指令
                 elif robot.social.get() > 3:
@@ -184,9 +186,8 @@ def app():
             else:
                 pass
 
-            # 物理状态，温度冷热、湿度、电量、震动等基础安全感，
-
             # ==================== 04 机器人表达区域 ====================
+
             if robot.current.get() == 1:
                 print("sleep")
                 ai_event = {
@@ -199,19 +200,18 @@ def app():
                 robot.current.update()
                 player.start(directory=robot.get_path('super'), loop=False)
                 robot.social.sub(2) # 社交值消耗
-            else:
-                if player.state != PlayerState.PLAYING:
-                    result = player.emocards.display()
-                    print("[{}, {}, {}, {}.decode()]".format(player.emocards.current_arousal, player.emocards.current_pleasantness, result["state"], result["description"]))
-
-                    # 如果情绪是中立情况，则根据社交值表达
-                    if ('\u5e73\u9759', '\u4e2d\u6027') == result["state"]: # 中立
-                        player.start(directory=robot.get_current_path(), loop=False)
-
-                    # 其他情绪，目前没有那么多情绪动画，只能挑典型动画
-                    # elif ('\u611f\u52a8', '\u611f\u52a8') == result["state"]:
-                    #     print("emotion")
+            elif robot.current.get() != 0:
+                result = player.emocards.display()
+                print("[{}, {}, {}, {}.decode()]".format(player.emocards.current_arousal, player.emocards.current_pleasantness, result["state"], result["description"]))
                 
+                # 如果情绪是中立情况，则根据社交值表达
+                if ('\u5e73\u9759', '\u4e2d\u6027') == result["state"]:
+                    if player.state != PlayerState.PLAYING:
+                        player.start(directory=robot.get_current_path(), loop=False)
+                else:
+                    pass
+                    # 这里介于 super 和 sleep 与 deep 之间的 awake 和 bored 之间，需要根据当前情绪来播放动画
+                    
             # ==================== 05 反馈状态区域 ====================
             print("emocards : {} state : {}, life : {}, social : {}".format(player.emocards.current_mapped, robot.current.get(), robot.life.get(), robot.social.get()))
             
@@ -220,7 +220,7 @@ def app():
         except Exception as e:
             sys.print_exception(e)
             print("Error: ", e)
-    player.agent.event(3000, robot_check, player)
+    player.agent.event(300, robot_check, player)
 
     while True:
         player.play()
