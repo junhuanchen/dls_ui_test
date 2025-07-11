@@ -100,38 +100,56 @@ class PriorityQueue:
             item = pq.pop()
 
 class EventContainer:
-    def __init__(self):
-        # 初始化一个字典来存储事件及其概率
+    """
+    事件时间容器
+    1. 记录每个事件的概率（经过平滑）
+    2. 记录事件第一次出现的时间（start_ts）
+    3. 记录事件最近一次被更新的时间（last_ts）
+    4. 每次 update 前先做全局衰减
+    """
+
+    def __init__(self, decay_step=0.1):
+        self.decay_step = decay_step
+        # 结构: {event: (prob, start_ts, last_ts)}
         self.events = {}
 
+    # ---------------- 核心接口 ----------------
     def update_events(self, new_events):
-        # 遍历新事件，更新或添加到现有事件中
-        for event, prob in new_events.items():
-            if event in self.events:
-                # 如果事件已存在，计算当前值与历史值的平均值
-                self.events[event] = (self.events[event] + prob) / 2
+        now = time.time()
+        for ev, prob in new_events.items():
+            if ev in self.events:
+                old_prob, start_ts, _ = self.events[ev]
+                new_prob = (old_prob + prob) / 2
+                self.events[ev] = (new_prob, start_ts, now)
             else:
-                # 如果事件不存在，该值控制触发起始点，为了避免误触发的突发事件
-                # 但模型很难有 0.99 的概率，假设大多数时候都是 0.7 / 0.4 = 1.74 的值
-                # 为了期望的 0.7 以上的第一条不作为输入，直到叠了两条。
-                self.events[event] = prob / 1.74
+                self.events[ev] = (prob / 1.74, now, now)
 
     def decay_events(self):
-        # 每次调用时，所有事件的概率值减少0.1，但不低于0
-        for event in list(self.events.keys()):
-            self.events[event] = max(self.events[event] - 0.1, 0)
-            # 如果概率值为0，则移除该事件
-            if self.events[event] < 0.1:
-                del self.events[event]
+        for ev in list(self.events.keys()):
+            prob, start_ts, last_ts = self.events[ev]
+            prob = max(prob - self.decay_step, 0)
+            if prob < 0.1:
+                del self.events[ev]
+            else:
+                self.events[ev] = (prob, start_ts, last_ts)
 
     def get_events(self):
-        # 返回当前的事件数据
-        return self.events
+        return {k: v[0] for k, v in self.events.items()}
 
-    
+    # ---------------- 新增查询 ----------------
+    def duration(self, event):
+        if event not in self.events:
+            return 0.0
+        return time.time() - self.events[event][1]
+
+    def last_seen(self, event):
+        if event not in self.events:
+            return float('inf')
+        return time.time() - self.events[event][2]
+
+    # ---------------- 调试用 ----------------
     @staticmethod
-    def unit_test(self):
-        # 示例数据，包括一些空数据
+    def unit_test():
         data = [
             {'Sadness': 0.7255054},
             {'Sadness': 0.7255054},
@@ -145,27 +163,18 @@ class EventContainer:
             {'Sadness': 0.8343774},
             {'Face': 0.1701155},
             {'Disgust': 0.2299653, 'Sadness': 0.856757},
-            {},  # 空数据
-            {},  # 空数据
-            {},  # 空数据
-            {},  # 空数据
-            {},  # 空数据
-            {},  # 空数据
-            {},  # 空数据
-            {},  # 空数据
+            {}, {}, {}, {}, {}, {}, {}, {}
         ]
 
-        # 创建事件容器实例
-        event_container = EventContainer()
-
-        # 模拟函数调用
+        ec = EventContainer()
         for entry in data:
-            # 每次调用前衰减现有事件的概率值
-            event_container.decay_events()
-            # 更新事件
-            event_container.update_events(entry)
-            # 打印当前事件状态
-            print("Updated events:", event_container.get_events())
+            import time
+            time.sleep(0.1)
+            ec.decay_events()
+            ec.update_events(entry)
+            print("Events:", ec.get_events())
+            if "Sadness" in ec.events:
+                print("   Sadness duration:", round(ec.duration("Sadness"), 2), "s")
 
 import machine
 import sensor, image, time, lcd
@@ -564,83 +573,183 @@ class AnimationPlayer:
             status = player.get_current_status()
             print("Current Status: %s" % status)
 
-
 class Emocards:
     def __init__(self):
-        # 定义情绪状态的描述
         self.emotion_descriptions = {
             ("低落", "不愉悦"): ["失落", "忧郁", "沮丧", "悲伤"],
-            ("低落", "中性"): ["平静", "淡然", "无感", "漠然"],
-            ("低落", "愉悦"): ["平和", "宁静", "安详", "满足"],
+            ("低落", "中性"):   ["平静", "淡然", "无感", "漠然"],
+            ("低落", "愉悦"):   ["平和", "宁静", "安详", "满足"],
             ("平静", "不愉悦"): ["困惑", "不满", "忧虑", "失望"],
-            ("平静", "中性"): ["稳定", "冷静", "中立", "淡然"],
-            ("平静", "愉悦"): ["舒适", "轻松", "满足", "惬意"],
+            ("平静", "中性"):   ["稳定", "冷静", "中立", "淡然"],
+            ("平静", "愉悦"):   ["舒适", "轻松", "满足", "惬意"],
             ("激动", "不愉悦"): ["不安", "烦躁", "焦虑", "易怒"],
-            ("激动", "中性"): ["期待", "紧张", "激动", "兴奋"],
-            ("激动", "愉悦"): ["开心", "愉悦", "兴奋", "快乐"]
+            ("激动", "中性"):   ["期待", "紧张", "激动", "兴奋"],
+            ("激动", "愉悦"):   ["开心", "愉悦", "兴奋", "快乐"]
         }
-        self.current_mapped = (2, 2)  # 初始情绪状态映射
-        self.current_state = ("平静", "中性")  # 初始情绪状态
-        self.current_arousal = 0.5  # 初始唤醒度，范围从0.0到1.0
-        self.current_pleasantness = 0.5  # 初始愉悦度，范围从0.0到1.0
-        self.current_description = "中立"  # 初始情绪描述
-        self.random_selection = False  # 是否随机选择情绪描述
 
-    def update(self, event_effects, event):
-        """
-        根据事件更新情绪状态并获取情绪描述
-        :param event_effects: 事件表，字典格式，例如 {"happy_event": {"arousal": 0.2, "pleasantness": 0.3}}
-        :param event: 事件类型，例如 "happy_event", "sad_event", "shake", "touch", "see_person"
-        """
-        # 获取事件的影响
-        effect = event_effects.get(event, {"arousal": 0, "pleasantness": 0})
+        # 中立锚点
+        self.reset_anchor_arousal      = 0.5
+        self.reset_anchor_pleasantness = 0.5
+        self.reset_factor = 0.25
 
-        # 更新唤醒度和愉悦度，并进行边界检查
-        self.current_arousal = max(0.0, min(1.0, self.current_arousal + effect["arousal"]))
-        self.current_pleasantness = max(0.0, min(1.0, self.current_pleasantness + effect["pleasantness"]))
+        # 当前状态
+        self.current_arousal      = 0.5
+        self.current_pleasantness = 0.5
+        self.current_mapped       = (2, 2)
+        self.current_state        = ("平静", "中性")
+        self.current_description  = "中立"
+        self.random_selection     = False
 
-        # 将0.0到1.0的区间映射到1、2、3
-        arousal_mapped = 1 if self.current_arousal < 0.33 else 2 if self.current_arousal < 0.67 else 3
-        pleasantness_mapped = 1 if self.current_pleasantness < 0.33 else 2 if self.current_pleasantness < 0.67 else 3
-        self.current_mapped = (arousal_mapped, pleasantness_mapped)
-        
-        arousal_map = {1: "低落", 2: "平静", 3: "激动"}
+    # ---------------- 内部工具 ----------------
+    def _remap(self):
+        """根据当前 arousal / pleasantness 重新计算派生字段"""
+        # 0~1 转 1,2,3
+        if self.current_arousal < 0.33:
+            a_idx = 1
+        elif self.current_arousal < 0.67:
+            a_idx = 2
+        else:
+            a_idx = 3
+
+        if self.current_pleasantness < 0.33:
+            p_idx = 1
+        elif self.current_pleasantness < 0.67:
+            p_idx = 2
+        else:
+            p_idx = 3
+
+        self.current_mapped = (a_idx, p_idx)
+
+        # 文字映射
+        arousal_map      = {1: "低落", 2: "平静", 3: "激动"}
         pleasantness_map = {1: "不愉悦", 2: "中性", 3: "愉悦"}
 
-        arousal_state = arousal_map.get(arousal_mapped, "未知")
-        pleasantness_state = pleasantness_map.get(pleasantness_mapped, "未知")
+        self.current_state = (arousal_map[a_idx], pleasantness_map[p_idx])
 
-        self.current_state = (arousal_state, pleasantness_state)  # 更新当前情绪状态
-
-        # 获取情绪描述
-        descriptions = self.emotion_descriptions.get(self.current_state, ["未知", "未知", "未知", "未知"])
-
+        # 描述
+        desc_list = self.emotion_descriptions.get(self.current_state, ["未知"])
         if self.random_selection:
             import random
-            self.current_description = random.choice(descriptions)
+            self.current_description = random.choice(desc_list)
         else:
-            # 根据 (arousal_mapped + pleasantness_mapped) / 2 的值选择情绪描述
-            self.current_description = descriptions[int((arousal_mapped + pleasantness_mapped) / 2)]
+            self.current_description = desc_list[(a_idx + p_idx) // 2]
 
+    # ---------------- 公开接口 ----------------
+    def update(self, event_effects, event):
+        """
+        根据事件更新情绪
+        event_effects: 字典，如 {"happy": {"arousal": 0.2, "pleasantness": 0.3}}
+        event: 字符串，事件 key
+        返回 (current_state, current_description)
+        """
+        eff = event_effects.get(event, {"arousal": 0, "pleasantness": 0})
+
+        self.current_arousal      = max(0.0, min(1.0, self.current_arousal      + eff["arousal"]))
+        self.current_pleasantness = max(0.0, min(1.0, self.current_pleasantness + eff["pleasantness"]))
+
+        self._remap()
         return self.current_state, self.current_description
 
+    def reset(self, dt=1.0):
+        """
+        向中立锚点收敛一步
+        dt: 步长系数
+        返回 display() 结果
+        """
+        # 指数衰减公式
+        k = self.reset_factor
+        diff_a = self.current_arousal      - self.reset_anchor_arousal
+        diff_p = self.current_pleasantness - self.reset_anchor_pleasantness
+
+        self.current_arousal      = self.reset_anchor_arousal      + diff_a * (2.718 ** (-k * dt))
+        self.current_pleasantness = self.reset_anchor_pleasantness + diff_p * (2.718 ** (-k * dt))
+
+        # 保证边界
+        self.current_arousal      = max(0.0, min(1.0, self.current_arousal))
+        self.current_pleasantness = max(0.0, min(1.0, self.current_pleasantness))
+
+        self._remap()
+        return self.display()
+
     def display(self):
+        """返回当前状态字典"""
         return {
-            "state": self.current_state,
-            "description": self.current_description.encode('utf-8'),
+            "state":       self.current_state,
+            "description": self.current_description.encode("utf-8"),
+            "arousal":     self.current_arousal,
+            "pleasantness":self.current_pleasantness
         }
 
     def run(self, event_effects, event):
-        """运行Emocards量表程序，返回情绪状态"""
-        state, description = self.update(event_effects, event)
+        """update + display 的快捷方式"""
+        self.update(event_effects, event)
         return self.display()
 
+    # ---------------- 单元测试 ----------------
+    @staticmethod
     def unit_test():
-        emocards = Emocards()
-        event_effects = {
-            "happy_event": {"arousal": 0.2, "pleasantness": 0.3},
-            "sad_event": {"arousal": 0.1, "pleasantness": 0.3}
+        emo = Emocards()
+        effects = {
+            "happy": {"arousal": 0.2, "pleasantness": 0.3},
+            "sad":   {"arousal": -0.1, "pleasantness": -0.4},
+            "panic": {"arousal": 0.5, "pleasantness": -0.3}
         }
-        print(emocards.display())
-        print(emocards.run(event_effects, "happy_event"))
-        print(emocards.run(event_effects, "sad_event"))
+
+        print("=== 初始 ===")
+        print(emo.display())
+
+        print("\n=== 发生 panic 事件 ===")
+        emo.update(effects, "panic")
+        print(emo.display())
+
+        print("\n=== 连续 5 次 reset ===")
+        for i in range(1, 6):
+            emo.reset()
+            print("第%d次:" % i, emo.display())
+
+        print("\n=== 发生 happy 事件 ===")
+        emo.update(effects, "happy")
+        print(emo.display())
+
+        print("\n=== 连续 5 次 reset ===")
+        for i in range(1, 6):
+            emo.reset()
+            print("第%d次:" % i, emo.display())
+
+
+class Number:
+    def __init__(self, lower_bound, upper_bound, initial_value=None):
+        self.lower_bound = lower_bound
+        self.upper_bound = upper_bound
+        self.value = self._clamp(initial_value) if initial_value is not None else None
+        self.oalue = None  # 只保存最后一次的旧值
+
+    def _clamp(self, value):
+        return max(self.lower_bound, min(value, self.upper_bound))
+
+    def set(self, value):
+        clamped_value = self._clamp(value)
+        if clamped_value != self.value:
+            self.oalue = self.value  # 保存当前值为旧值
+            self.value = clamped_value
+
+    def get(self):
+        return self.value
+
+    def add(self, delta):
+        new_value = self._clamp(self.value + delta)
+        if new_value != self.value:
+            self.oalue = self.value  # 保存当前值为旧值
+            self.value = new_value
+
+    def sub(self, delta):
+        new_value = self._clamp(self.value - delta)
+        if new_value != self.value:
+            self.oalue = self.value  # 保存当前值为旧值
+            self.value = new_value
+
+    def old(self):  # 获取最后一次的旧值
+        return self.oalue
+
+    def update(self):  # 主动更新旧值
+        self.oalue = self.value

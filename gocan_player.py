@@ -3,7 +3,7 @@ import os
 import sensor, image, time, lcd, json
 import gc, sys
 
-from gocan import protect, AnimationPlayer, EventContainer, Emocards, PriorityQueue, camera_ai_manager, PlayerState, DEBUG
+from gocan import protect, AnimationPlayer, EventContainer, Emocards, PriorityQueue, camera_ai_manager, PlayerState, DEBUG, Number
 
 # cube
 lcd.init(freq=15000000, type=2, invert=True, offset_w0=0, offset_h0=0, offset_w1=0, offset_h1=0, width=240, height=240, rst=37, dcx=38, ss=36, clk=39)
@@ -69,43 +69,6 @@ def app():
             player.container.update_events(result['detections'])
     player.agent.event(500, ai_check, player)
 
-    class Number:
-        def __init__(self, lower_bound, upper_bound, initial_value=None):
-            self.lower_bound = lower_bound
-            self.upper_bound = upper_bound
-            self.value = self._clamp(initial_value) if initial_value is not None else None
-            self.oalue = None  # 只保存最后一次的旧值
-
-        def _clamp(self, value):
-            return max(self.lower_bound, min(value, self.upper_bound))
-
-        def set(self, value):
-            clamped_value = self._clamp(value)
-            if clamped_value != self.value:
-                self.oalue = self.value  # 保存当前值为旧值
-                self.value = clamped_value
-
-        def get(self):
-            return self.value
-
-        def add(self, delta):
-            new_value = self._clamp(self.value + delta)
-            if new_value != self.value:
-                self.oalue = self.value  # 保存当前值为旧值
-                self.value = new_value
-
-        def sub(self, delta):
-            new_value = self._clamp(self.value - delta)
-            if new_value != self.value:
-                self.oalue = self.value  # 保存当前值为旧值
-                self.value = new_value
-
-        def old(self):  # 获取最后一次的旧值
-            return self.oalue
-
-        def update(self):  # 主动更新旧值
-            self.oalue = self.value
-
     class robot_base:
         def __init__(self):
             # ==================== 01 事件定义区域 ====================
@@ -163,6 +126,7 @@ def app():
                     "value": value,
                 }
                 player.queue.push(ai_event.get("priority", 3), ai_event) # 事件优先级，默认为 3
+            print(key, value, player.container.duration(key)) # 事件 概率 持续时间
 
         # ==================== 02 优先事件处理区域 ====================
 
@@ -250,7 +214,9 @@ def app():
                 
             # ==================== 05 反馈状态区域 ====================
             print("emocards : {} state : {}, life : {}, social : {}".format(player.emocards.current_mapped, robot.current.get(), robot.life.get(), robot.social.get()))
-        
+            
+            player.emocards.reset() # 稳定情绪
+            
         except Exception as e:
             sys.print_exception(e)
             print("Error: ", e)
