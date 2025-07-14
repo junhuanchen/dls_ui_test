@@ -6,11 +6,11 @@ import gc, sys
 from gocan import protect, AnimationPlayer, EventContainer, Emocards, PriorityQueue, camera_ai_manager, PlayerState, DEBUG, Number
 
 # cube
-lcd.init(freq=15000000, type=2, invert=True, offset_w0=0, offset_h0=0, offset_w1=0, offset_h1=0, width=240, height=240, rst=37, dcx=38, ss=36, clk=39)
+# lcd.init(freq=15000000, type=2, invert=True, offset_w0=0, offset_h0=0, offset_w1=0, offset_h1=0, width=240, height=240, rst=37, dcx=38, ss=36, clk=39)
 # lcd.rotation(1)
 
 # gocan
-# lcd.init(freq=15000000, offset_w0=20, offset_h0=0, offset_w1=20, offset_h1=0, width=280, height=240, rst=39, dcx=38, ss=37, clk=36)
+lcd.init(freq=15000000, offset_w0=20, offset_h0=0, offset_w1=20, offset_h1=0, width=280, height=240, rst=39, dcx=38, ss=37, clk=36)
 # lcd.direction(lcd.YX_RLDU)
 
 def app():
@@ -149,6 +149,116 @@ def app():
                 # 这一轮的情绪表达就符合预期了，可以进入下一轮了
 
     player.agent.event(1000, event_check, player)
+    
+    # # =============== 状态机 ===============
+
+    # class RobotFSM:
+    #     """极简有限状态机，单文件内完成"""
+    #     def __init__(self, robot, player):
+    #         self.robot  = robot
+    #         self.player = player
+    #         self._state_map = {
+    #             0: DeepSleepState(self, robot, player),
+    #             1: SleepState(self, robot, player),
+    #             2: AwakeState(self, robot, player),
+    #             3: BoredState(self, robot, player),
+    #             4: ExpressState(self, robot, player),
+    #         }
+    #         self._state = self._state_map[2]   # 默认 awake
+    #         self._state.enter()
+
+    #     # 供 robot_check 每 300 ms 调用
+    #     def update(self):
+    #         next_code = self._state.next_code()
+    #         if next_code is not None and next_code != self._state.code:
+    #             self._state.exit()
+    #             self._state = self._state_map[next_code]
+    #             self._state.enter()
+    #         self._state.tick()
+
+    # # ---------- 各状态 ----------
+    # class StateBase:
+    #     code = -1
+    #     def __init__(self, fsm, robot, player):
+    #         self.fsm = fsm
+    #         self.r   = robot
+    #         self.p   = player
+    #     def enter(self): pass
+    #     def exit(self): pass
+    #     def tick(self): pass
+    #     def next_code(self): return None   # 返回下一个状态 code，None 保持
+
+    # class DeepSleepState(StateBase):
+    #     code = 0
+    #     def enter(self):
+    #         self.p.start(directory=self.r.get_path('deep'), loop=True)
+    #     def next_code(self):
+    #         return 2 if self.r.social.get() > 3 else None
+
+    # class SleepState(StateBase):
+    #     code = 1
+    #     def enter(self):
+    #         self.p.start(directory=self.r.get_path('sleep'), loop=False)
+    #         self.r.social.set(3)
+    #         self.r.current.set(0)  # 下一次进入 deep
+    #     def next_code(self):
+    #         return None  # 由 DeepSleepState 接管
+
+    # class AwakeState(StateBase):
+    #     code = 2
+    #     def tick(self):
+    #         if self.r.life.get() < 1 or self.r.social.get() < 1:
+    #             return
+    #         if self.r.social.get() < 3:
+    #             self.fsm._state = self.fsm._state_map[3]
+    #             self.fsm._state.enter()
+    #         elif self.r.social.get() > 8:
+    #             self.fsm._state = self.fsm._state_map[4]
+    #             self.fsm._state.enter()
+    #         else:
+    #             self.fsm._state = self.fsm._state_map[3]
+    #             self.fsm._state.enter()
+
+    # class BoredState(StateBase):
+    #     code = 3
+    #     def enter(self):
+    #         if self.p.state != PlayerState.PLAYING:
+    #             self.p.start(directory=self.r.get_current_path(), loop=False)
+    #     def next_code(self):
+    #         if self.r.life.get() < 1 or self.r.social.get() < 1:
+    #             return 1
+    #         if self.r.social.get() > 8:
+    #             return 4
+    #         return None
+
+    # class ExpressState(StateBase):
+    #     code = 4
+    #     def enter(self):
+    #         self.p.start(directory=self.r.get_path('super'), loop=False)
+    #         self.r.social.sub(2)
+    #     def next_code(self):
+    #         if self.r.life.get() < 1 or self.r.social.get() < 1:
+    #             return 1
+    #         if self.r.social.get() <= 8:
+    #             return 3
+    #         return None
+
+    # player.fsm = RobotFSM(robot, player)   # 放在 player 初始化之后即可
+
+    # def robot_check(player):
+    #     try:
+    #         robot.social.sub(1)
+    #         # 社交值会持续衰减，但可以通过 AI 事件来增加，当社交值低于 1 时，会进入睡眠
+    #         player.fsm.update()
+    #         # 其余调试打印可保留
+    #         print("emocards : {} state : {}, life : {}, social : {}".format(
+    #             player.emocards.current_mapped, robot.current.get(),
+    #             robot.life.get(), robot.social.get()))
+    #         # 稳定情绪，让情绪值期望回到中位。
+    #         player.emocards.reset()
+    #     except Exception as e:
+    #         import sys
+    #         sys.print_exception(e)
 
     def robot_check(player):
         try:
@@ -198,7 +308,7 @@ def app():
             # 社交值高的时候，可以打断播放，情绪表达之间是平级的。，社交值低的时候
             elif robot.current.get() == 4 and robot.current.old() != 4: # 社交强的专属动画效果，因宠物性格而定。
                 robot.current.update()
-                player.start(directory=robot.get_path('super'), loop=False)
+                player.start(directory=robot.get_path('express'), loop=False)
                 robot.social.sub(2) # 社交值消耗
             elif robot.current.get() != 0:
                 result = player.emocards.display()
@@ -210,7 +320,7 @@ def app():
                         player.start(directory=robot.get_current_path(), loop=False)
                 else:
                     pass
-                    # 这里介于 super 和 sleep 与 deep 之间的 awake 和 bored 之间，需要根据当前情绪来播放动画
+                    # 这里介于 express 和 sleep 与 deep 之间的 awake 和 bored 之间，需要根据当前情绪来播放动画
                     
             # ==================== 05 反馈状态区域 ====================
             print("emocards : {} state : {}, life : {}, social : {}".format(player.emocards.current_mapped, robot.current.get(), robot.life.get(), robot.social.get()))
@@ -220,7 +330,8 @@ def app():
         except Exception as e:
             sys.print_exception(e)
             print("Error: ", e)
-    player.agent.event(300, robot_check, player)
+    
+    player.agent.event(3000, robot_check, player)
 
     while True:
         player.play()
