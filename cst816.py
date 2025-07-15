@@ -73,7 +73,7 @@ class CST816:
 
 # ------------------  板级初始化 + 示例主循环  ------------------
 # 1. 复位引脚
-fm.register(24, fm.fpioa.GPIOHS6, force=True)
+fm.register(22, fm.fpioa.GPIOHS6, force=True)
 rst = GPIO(GPIO.GPIOHS6, GPIO.OUT)
 rst.value(0)
 time.sleep_ms(10)
@@ -81,7 +81,7 @@ rst.value(1)
 time.sleep_ms(50)
 
 # 2. I2C 总线
-i2c = I2C(I2C.I2C4, freq=400000, scl=22, sda=23)
+i2c = I2C(I2C.I2C4, freq=400000, scl=30, sda=31)
 
 # 3. 扫描确认
 print("I2C scan:", i2c.scan())

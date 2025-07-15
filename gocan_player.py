@@ -2,15 +2,21 @@
 import os
 import sensor, image, time, lcd, json
 import gc, sys
+from Maix import GPIO
+from fpioa_manager import fm
 
 from gocan import protect, AnimationPlayer, EventContainer, Emocards, PriorityQueue, camera_ai_manager, PlayerState, DEBUG, Number
 
 # cube
-# lcd.init(freq=15000000, type=2, invert=True, offset_w0=0, offset_h0=0, offset_w1=0, offset_h1=0, width=240, height=240, rst=37, dcx=38, ss=36, clk=39)
-# lcd.rotation(1)
+lcd.init(freq=15000000, type=2, invert=True, offset_w0=0, offset_h0=0, offset_w1=0, offset_h1=0, width=240, height=240, rst=37, dcx=38, ss=36, clk=39)
+lcd.rotation(2)
+
+fm.register(17, fm.fpioa.GPIOHS6, force=True)
+rst = GPIO(GPIO.GPIOHS6, GPIO.OUT)
+rst.value(0)
 
 # gocan
-lcd.init(freq=15000000, offset_w0=20, offset_h0=0, offset_w1=20, offset_h1=0, width=280, height=240, rst=39, dcx=38, ss=37, clk=36)
+# lcd.init(freq=15000000, offset_w0=20, offset_h0=0, offset_w1=20, offset_h1=0, width=280, height=240, rst=39, dcx=38, ss=37, clk=36)
 # lcd.direction(lcd.YX_RLDU)
 
 def app():
@@ -60,6 +66,8 @@ def app():
                 player.queue.push(sensor_event.get("priority", 2), sensor_event)
             except json.JSONDecodeError as e:
                 print("Error parsing JSON: ", e)
+        else:
+            pass
     player.agent.event(250, sensor_check, player)
 
     def ai_check(player):
@@ -152,115 +160,124 @@ def app():
     
     # # =============== 状态机 ===============
 
-    # class RobotFSM:
-    #     """极简有限状态机，单文件内完成"""
-    #     def __init__(self, robot, player):
-    #         self.robot  = robot
-    #         self.player = player
-    #         self._state_map = {
-    #             0: DeepSleepState(self, robot, player),
-    #             1: SleepState(self, robot, player),
-    #             2: AwakeState(self, robot, player),
-    #             3: BoredState(self, robot, player),
-    #             4: ExpressState(self, robot, player),
-    #         }
-    #         self._state = self._state_map[2]   # 默认 awake
-    #         self._state.enter()
+    class RobotFSM:
+        def __init__(self, robot, player):
+            self.robot  = robot
+            self.player = player
+            self._state_map = {
+                0: DeepSleepState(self, robot, player),
+                1: SleepState(self, robot, player),
+                2: AwakeState(self, robot, player),
+                3: BoredState(self, robot, player),
+                4: ExpressState(self, robot, player),
+            }
+            self._state = self._state_map[2]   # 默认 awake
+            self._state.enter()
 
-    #     # 供 robot_check 每 300 ms 调用
-    #     def update(self):
-    #         next_code = self._state.next_code()
-    #         if next_code is not None and next_code != self._state.code:
-    #             self._state.exit()
-    #             self._state = self._state_map[next_code]
-    #             self._state.enter()
-    #         self._state.tick()
+        def transit(self, code):
+            """外部强制跳转到指定状态"""
+            if code in self._state_map and code != self._state.code:
+                self._state.exit()
+                self._state = self._state_map[code]
+                self._state.enter()
+                
+        def update(self):
+            next_code = self._state.next_code()
+            if next_code is not None and next_code != self._state.code:
+                self._state.exit()
+                self._state = self._state_map[next_code]
+                self._state.enter()
+            self._state.tick()
 
-    # # ---------- 各状态 ----------
-    # class StateBase:
-    #     code = -1
-    #     def __init__(self, fsm, robot, player):
-    #         self.fsm = fsm
-    #         self.r   = robot
-    #         self.p   = player
-    #     def enter(self): pass
-    #     def exit(self): pass
-    #     def tick(self): pass
-    #     def next_code(self): return None   # 返回下一个状态 code，None 保持
+    # ---------- 各状态 ----------
+    class StateBase:
+        code = -1
+        def __init__(self, fsm, robot, player):
+            self.fsm = fsm
+            self.r   = robot
+            self.p   = player
+        def enter(self): pass
+        def exit(self): pass
+        def tick(self): pass
+        def next_code(self): return None   # 返回下一个状态 code，None 保持
 
-    # class DeepSleepState(StateBase):
-    #     code = 0
-    #     def enter(self):
-    #         self.p.start(directory=self.r.get_path('deep'), loop=True)
-    #     def next_code(self):
-    #         return 2 if self.r.social.get() > 3 else None
+    class DeepSleepState(StateBase):
+        code = 0
+        def enter(self):
+            self.p.start(directory=self.r.get_path('deep'), loop=True)
+        def next_code(self):
+            if self.r.social.get() >= 9:
+                return 4          # 直接 Express
+            if self.r.social.get() > 3:
+                return 2          # 正常 Awake
+            return None
+    class SleepState(StateBase):
+        code = 1
+        def enter(self):
+            self.p.start(directory=self.r.get_path('sleep'), loop=False)
+            self.r.social.set(3)           # 进入睡眠时给一个中等社交值
+            self.r.current.set(0)          # 标记：下一次允许进入 DeepSleep
+        def next_code(self):
+            # 睡眠动画播完后直接进入 DeepSleep
+            if not self.p.state == PlayerState.PLAYING:
+                return 0                   # 0 = DeepSleepState
+            return None
 
-    # class SleepState(StateBase):
-    #     code = 1
-    #     def enter(self):
-    #         self.p.start(directory=self.r.get_path('sleep'), loop=False)
-    #         self.r.social.set(3)
-    #         self.r.current.set(0)  # 下一次进入 deep
-    #     def next_code(self):
-    #         return None  # 由 DeepSleepState 接管
+    class AwakeState(StateBase):
+        code = 2
+        def next_code(self):
+            if self.r.life.get() < 1 or self.r.social.get() < 1:
+                return 1                   # 去 Sleep
+            if self.r.social.get() < 3:
+                return 3                   # 去 Bored
+            if self.r.social.get() > 8:
+                return 4                   # 去 Express
+            return 3                       # 默认去 Bored
 
-    # class AwakeState(StateBase):
-    #     code = 2
-    #     def tick(self):
-    #         if self.r.life.get() < 1 or self.r.social.get() < 1:
-    #             return
-    #         if self.r.social.get() < 3:
-    #             self.fsm._state = self.fsm._state_map[3]
-    #             self.fsm._state.enter()
-    #         elif self.r.social.get() > 8:
-    #             self.fsm._state = self.fsm._state_map[4]
-    #             self.fsm._state.enter()
-    #         else:
-    #             self.fsm._state = self.fsm._state_map[3]
-    #             self.fsm._state.enter()
+    class BoredState(StateBase):
+        code = 3
+        def enter(self):
+            pass
+        def next_code(self):
+            if self.p.state != PlayerState.PLAYING:
+                self.p.start(directory=self.r.get_current_path(), loop=False)
+            if self.r.life.get() < 1 or self.r.social.get() < 1:
+                return 1
+            if self.r.social.get() > 8:
+                return 4
+            return None
 
-    # class BoredState(StateBase):
-    #     code = 3
-    #     def enter(self):
-    #         if self.p.state != PlayerState.PLAYING:
-    #             self.p.start(directory=self.r.get_current_path(), loop=False)
-    #     def next_code(self):
-    #         if self.r.life.get() < 1 or self.r.social.get() < 1:
-    #             return 1
-    #         if self.r.social.get() > 8:
-    #             return 4
-    #         return None
+    class ExpressState(StateBase):
+        code = 4
+        def enter(self):
+            self.p.start(directory=self.r.get_path('express'), loop=False)
+            self.r.social.sub(2)
+        def next_code(self):
+            if self.r.life.get() < 1 or self.r.social.get() < 1:
+                return 1
+            if self.r.social.get() <= 8:
+                return 3
+            return None
 
-    # class ExpressState(StateBase):
-    #     code = 4
-    #     def enter(self):
-    #         self.p.start(directory=self.r.get_path('super'), loop=False)
-    #         self.r.social.sub(2)
-    #     def next_code(self):
-    #         if self.r.life.get() < 1 or self.r.social.get() < 1:
-    #             return 1
-    #         if self.r.social.get() <= 8:
-    #             return 3
-    #         return None
-
-    # player.fsm = RobotFSM(robot, player)   # 放在 player 初始化之后即可
-
-    # def robot_check(player):
-    #     try:
-    #         robot.social.sub(1)
-    #         # 社交值会持续衰减，但可以通过 AI 事件来增加，当社交值低于 1 时，会进入睡眠
-    #         player.fsm.update()
-    #         # 其余调试打印可保留
-    #         print("emocards : {} state : {}, life : {}, social : {}".format(
-    #             player.emocards.current_mapped, robot.current.get(),
-    #             robot.life.get(), robot.social.get()))
-    #         # 稳定情绪，让情绪值期望回到中位。
-    #         player.emocards.reset()
-    #     except Exception as e:
-    #         import sys
-    #         sys.print_exception(e)
+    player.fsm = RobotFSM(robot, player)   # 放在 player 初始化之后即可
 
     def robot_check(player):
+        try:
+            robot.social.sub(1)
+            # 社交值会持续衰减，但可以通过 AI 事件来增加，当社交值低于 1 时，会进入睡眠
+            player.fsm.update()
+            # 其余调试打印可保留
+            print("fsm : {} emocards : {} state : {}, life : {}, social : {}".format(
+                player.fsm._state,
+                player.emocards.current_mapped, robot.current.get(),
+                robot.life.get(), robot.social.get()))
+            # 稳定情绪，让情绪值期望回到中位。
+            player.emocards.reset()
+        except Exception as e:
+            import sys
+            sys.print_exception(e)
+
+    def old_robot_check(player):
         try:
             # ==================== 03 机身状态区域 ====================
             # 物理状态，温度冷热、湿度、电量、震动等基础安全感，
@@ -331,7 +348,7 @@ def app():
             sys.print_exception(e)
             print("Error: ", e)
     
-    player.agent.event(3000, robot_check, player)
+    player.agent.event(3000, old_robot_check, player)
 
     while True:
         player.play()
