@@ -189,7 +189,7 @@ def app():
                 self._state.enter()
             self._state.tick()
 
-    # ---------- 各状态 ----------
+    # ===================== 状态基类 =====================
     class StateBase:
         code = -1
         def __init__(self, fsm, robot, player):
@@ -201,81 +201,110 @@ def app():
         def tick(self): pass
         def next_code(self): return None   # 返回下一个状态 code，None 保持
 
+    # ===================== DeepSleepState =====================
     class DeepSleepState(StateBase):
         code = 0
         def enter(self):
             self.p.start(directory=self.r.get_path('deep'), loop=True)
+
         def next_code(self):
-            if self.r.social.get() >= 9:
-                return 4          # 直接 Express
+            # 只允许回到 AwakeState，不再直接 Express
             if self.r.social.get() > 3:
-                return 2          # 正常 Awake
+                return 2  # 只能先去 AwakeState
             return None
+
+    # ===================== SleepState =====================
     class SleepState(StateBase):
         code = 1
         def enter(self):
+            self.r.social.set(3)
             self.p.start(directory=self.r.get_path('sleep'), loop=False)
-            self.r.social.set(3)           # 进入睡眠时给一个中等社交值
-            self.r.current.set(0)          # 标记：下一次允许进入 DeepSleep
+
         def next_code(self):
-            # 睡眠动画播完后直接进入 DeepSleep
-            if not self.p.state == PlayerState.PLAYING:
-                return 0                   # 0 = DeepSleepState
+            if self.p.state != PlayerState.PLAYING:
+                return 0  # 动画播完后进入 DeepSleep
             return None
 
+    # ===================== AwakeState =====================
     class AwakeState(StateBase):
         code = 2
         def next_code(self):
             if self.r.life.get() < 1 or self.r.social.get() < 1:
-                return 1                   # 去 Sleep
+                return 1  # Sleep
             if self.r.social.get() < 3:
-                return 3                   # 去 Bored
+                return 3  # Bored
             if self.r.social.get() > 8:
-                return 4                   # 去 Express
-            return 3                       # 默认去 Bored
+                return 4  # Express
+            return 3  # 默认 Bored
 
+    # ===================== BoredState =====================
     class BoredState(StateBase):
         code = 3
+
         def enter(self):
-            pass
-        def next_code(self):
+            # 立即尝试播放 bored 动画
             if self.p.state != PlayerState.PLAYING:
                 self.p.start(directory=self.r.get_current_path(), loop=False)
+
+        def tick(self):
+            # 兜底：如果播放完一轮后没触发，继续播
+            if self.p.state != PlayerState.PLAYING:
+                self.p.start(directory=self.r.get_current_path(), loop=False)
+
+        def next_code(self):
             if self.r.life.get() < 1 or self.r.social.get() < 1:
                 return 1
             if self.r.social.get() > 8:
                 return 4
             return None
-
+            
+    # ===================== ExpressState =====================
     class ExpressState(StateBase):
         code = 4
         def enter(self):
             self.p.start(directory=self.r.get_path('express'), loop=False)
             self.r.social.sub(2)
+
         def next_code(self):
             if self.r.life.get() < 1 or self.r.social.get() < 1:
                 return 1
-            if self.r.social.get() <= 8:
-                return 3
-            return None
+            # 播完 express 后，明确回到 bored
+            return 3
 
     player.fsm = RobotFSM(robot, player)   # 放在 player 初始化之后即可
-
+    
     def robot_check(player):
         try:
-            robot.social.sub(1)
-            # 社交值会持续衰减，但可以通过 AI 事件来增加，当社交值低于 1 时，会进入睡眠
-            player.fsm.update()
-            # 其余调试打印可保留
-            print("fsm : {} emocards : {} state : {}, life : {}, social : {}".format(
-                player.fsm._state,
-                player.emocards.current_mapped, robot.current.get(),
-                robot.life.get(), robot.social.get()))
-            # 稳定情绪，让情绪值期望回到中位。
-            player.emocards.reset()
+            robot.social.sub(1)          # 3 秒一次的社交衰减
+            player.fsm.update()          # 驱动状态机
+
+            # 调试打印
+            print("fsm:{}, emocards:{}, life:{}, social:{}".format(
+                player.fsm._state.__class__.__name__,
+                player.emocards.current_mapped,
+                robot.life.get(),
+                robot.social.get()))
+
+            player.emocards.reset()      # 情绪重置
         except Exception as e:
             import sys
             sys.print_exception(e)
+
+    # def robot_check(player):
+    #     try:
+    #         robot.social.sub(1)
+    #         # 社交值会持续衰减，但可以通过 AI 事件来增加，当社交值低于 1 时，会进入睡眠
+    #         player.fsm.update()
+    #         # 其余调试打印可保留
+    #         print("fsm : {} emocards : {} state : {}, life : {}, social : {}".format(
+    #             player.fsm._state,
+    #             player.emocards.current_mapped, robot.current.get(),
+    #             robot.life.get(), robot.social.get()))
+    #         # 稳定情绪，让情绪值期望回到中位。
+    #         player.emocards.reset()
+    #     except Exception as e:
+    #         import sys
+    #         sys.print_exception(e)
 
     def old_robot_check(player):
         try:
@@ -348,7 +377,7 @@ def app():
             sys.print_exception(e)
             print("Error: ", e)
     
-    player.agent.event(3000, old_robot_check, player)
+    player.agent.event(3000, robot_check, player)
 
     while True:
         player.play()
