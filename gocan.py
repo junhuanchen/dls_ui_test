@@ -465,7 +465,14 @@ class AnimationPlayer:
         if self.state == PlayerState.PAUSED:
             self.state = PlayerState.PLAYING
             # self.play_start = time.ticks_ms()
+    def is_playing(self):
+        """判断是否正在播放动画"""
+        return self.state == PlayerState.PLAYING
 
+    def is_paused(self):
+        """判断是否暂停播放动画"""
+        return self.state != PlayerState.PLAYING
+        
     def play(self):
         self.agent.parallel_cycle()
         """播放动画"""
