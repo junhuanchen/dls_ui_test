@@ -8,14 +8,7 @@ from fpioa_manager import fm
 lcd.init(freq=15000000, offset_w0=20, offset_h0=0, offset_w1=20, offset_h1=0, width=280, height=240, rst=39, dcx=38, ss=37, clk=36)
 lcd.direction(lcd.YX_RLDU)
 
-# Hello World Example
-#
-# Welcome to the MaixPy IDE!
-# 1. Conenct board to computer
-# 2. Select board at the top of MaixPy IDE: `tools->Select Board`
-# 3. Click the connect buttion below to connect board
-# 4. Click on the green run arrow button below to run the script!
-
+sensor.reset()
 sensor.set_vflip(3)
                                     # run automatically, call sensor.run(0) to stop
 sensor.set_pixformat(sensor.RGB565) # Set pixel format to RGB565 (or GRAYSCALE)
