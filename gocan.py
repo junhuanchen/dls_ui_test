@@ -391,6 +391,9 @@ model_list = [
 camera_ai_manager = CameraAIManager(model_list)
 camera_ai_manager.power_on()
 
+import ujson as json
+import random
+
 class PlayerState:
     IDLE = 1
     PLAYING = 2
@@ -416,6 +419,15 @@ class AnimationPlayer:
         from machine import UART
         self.uart = UART(UART.UART1, 115200, 8, 1, 0, timeout=1000, read_buf_len=4096)
 
+    def uart_call(self, func_name, **kwargs):
+        """UART JSON RPC"""
+        req = {
+            "jsonrpc": "2.0",
+            "method": func_name,
+            "params": kwargs,
+            "id": str(random.randint(0, 1000000000))
+        }
+        self.uart.write((json.dumps(req) + '\n').encode())
 
     def _load_files(self, directory, start_file=1, end_file=None):
         """加载指定目录中的文件"""

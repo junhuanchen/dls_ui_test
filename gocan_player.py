@@ -45,6 +45,12 @@ def app():
 
     player = AnimationPlayer(prefix='', delay=125, callback=robot_ai_callback)  # 设置期望延时播放间隔为125ms
 
+    def body_vibrate(val, ms):
+        player.uart_call("vibrate", val=val, ms=ms)
+
+    def body_play(val):
+        player.uart_call("play", val=val)
+
     # player.start(directory='/sd/03_base_jpgs', start_file=0, end_file=None, loop=False)
 
     player.queue = PriorityQueue()
@@ -55,7 +61,7 @@ def app():
         # 检查player的uart是否有数据
         if player.uart.any():
             read_data = player.uart.readline()
-            print("recv = ", read_data)
+            # print("recv = ", read_data)
             try:
                 sensor_event = json.loads(read_data)
                 # sensor_event = {
@@ -63,8 +69,9 @@ def app():
                 #     "priority": 2
                 #     "value": "10"
                 # }
-                player.queue.push(sensor_event.get("priority", 2), sensor_event)
-            except json.JSONDecodeError as e:
+                print(sensor_event)
+                # player.queue.push(sensor_event.get("priority", 2), sensor_event)
+            except Exception as e:
                 print("Error parsing JSON: ", e)
         else:
             pass
