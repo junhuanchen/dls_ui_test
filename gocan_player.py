@@ -65,7 +65,7 @@ def app():
         # 检查player的uart是否有数据
         if player.uart.any():
             read_data = player.uart.readline()
-            # print("recv = ", read_data)
+            print("recv = ", read_data)
             try:
                 sensor_event = json.loads(read_data)
                 # sensor_event = {
@@ -73,8 +73,15 @@ def app():
                 #     "priority": 2
                 #     "value": "10"
                 # }
+                # {
+                #     "action": "emoji",
+                #     "priority": 2
+                #     "value": "10"
+                #     "loop": "3"
+                # }
+
                 print(sensor_event)
-                # player.queue.push(sensor_event.get("priority", 2), sensor_event)
+                player.queue.push(sensor_event.get("priority", 2), sensor_event)
             except Exception as e:
                 print("Error parsing JSON: ", e)
         else:
@@ -108,7 +115,8 @@ def app():
             }
 
             self.base_path = "/sd/base"
-            self.current_list = ["deep", "sleep", "awake", "bored", "express"]
+            # self.current_list = ["deep", "sleep", "awake", "bored", "express"]
+            self.current_list = ["pc", "xm", "pj", "xy", "kx"] # 关机、休眠、平静，喜悦，开心
             self.current = Number(0, 4, 2)  # 反馈状态，用于标记情绪表达的结果，以及唤醒或休眠的状态值，这样可以用作下一次的状态参考
             self.life   = Number(0, 10, 10) # 生命值，从 20 到 1，当生命小于 1 时，关机，刚醒来时，没有同步电量的情况下，会假定满电量
             self.social = Number(0, 10, 10) # 社交指数，从 0 到 10，当社交指数小于 1 时，准备睡觉，如果有人出现，社交指数会升到 5 ，如果到 10 则触发专属彩蛋动画。
@@ -210,6 +218,9 @@ def app():
                 # 生理需求处理
                 if event.data["action"] == "battry_down" or event.data["action"] == "battry_up":
                     robot.life.set(event.data["value"]) # 电量事件，直接设置电量
+                # 测试表情表达处理
+                if event.data["action"] == "emoji":
+                    player.start(directory=robot.get_path(event.data["value"]), loop=int(event.data["loop"]))
                 # 情感需求处理
                 player.emocards.update(robot.event_effects, event.data["action"])
 
@@ -265,7 +276,7 @@ def app():
         code = 0
         def enter(self):
             super().enter()
-            self.p.start(directory=self.r.get_path('deep'), loop=True)
+            self.p.start(directory=self.r.get_current_path(), loop=1)
 
         def next_code(self):
             if self.r.social.get() > 3:
@@ -278,7 +289,7 @@ def app():
         def enter(self):
             super().enter()
             self.r.social.set(3)
-            self.p.start(directory=self.r.get_path('sleep'), loop=False)
+            self.p.start(directory=self.r.get_current_path(), loop=3)
 
         def next_code(self):
             if self.p.is_paused():
@@ -290,12 +301,13 @@ def app():
         code = 2
         def next_code(self):
             if self.p.is_paused():
-                self.p.start(directory=self.r.get_current_path(), loop=False)
+                self.p.start(directory=self.r.get_current_path(), loop=5)
+                self.r.social.add(1)
             if self.r.life.get() < 1 or self.r.social.get() < 1:
                 return 1
-            if self.r.social.get() > 8:
-                return 4
-            return 3
+            if self.r.social.get() > 4:
+                return 3
+            return None
 
     # ===================== BoredState =====================
     class BoredState(StateBase):
@@ -303,17 +315,17 @@ def app():
         def enter(self):
             super().enter()
             if self.p.is_paused():
-                self.p.start(directory=self.r.get_current_path(), loop=False)
+                self.p.start(directory=self.r.get_current_path(), loop=2)
 
         def tick(self):
             if self.p.is_paused():
-                self.p.start(directory=self.r.get_current_path(), loop=False)
+                self.p.start(directory=self.r.get_current_path(), loop=2)
 
 
         def next_code(self):
             if self.r.life.get() < 1 or self.r.social.get() < 1:
                 return 1
-            if self.r.social.get() < 3:
+            if self.r.social.get() < 5:
                 return 2
             if self.r.social.get() > 8:
                 return 4
@@ -324,8 +336,11 @@ def app():
         code = 4
         def enter(self):
             super().enter()
-            self.p.start(directory=self.r.get_path('express'), loop=False)
-            self.r.social.sub(2)
+            self.p.start(directory=self.r.get_current_path(), loop=2)
+            if self.p.is_paused():
+                self.r.social.sub(2)
+            else:
+                self.r.social.add(1)
 
         def next_code(self):
             if self.r.life.get() < 1 or self.r.social.get() < 1:
@@ -336,17 +351,18 @@ def app():
 
     def robot_check(player):
         try:
-            player.delay = 50
-            robot.show_all_loop(player)
-            return # 测试动画的模式
+            player.delay = 100
+            # robot.show_all_loop(player)
+            # return # 测试动画的模式
 
             robot.social.sub(1)          # 3 秒一次的社交衰减
             player.fsm.update()          # 驱动状态机
 
             # 调试打印
-            print("fsm:{}, emocards:{}, life:{}, social:{}".format(
+            print("fsm:{}, emocards:{}, current:{}, life:{}, social:{}".format(
                 player.fsm._state.__class__.__name__,
                 player.emocards.current_mapped,
+                robot.current.get(),
                 robot.life.get(),
                 robot.social.get()))
 

@@ -1,0 +1,12 @@
+{
+    "config_name": "config.json",
+    "sdcard":{
+        "sclk":27,
+        "mosi":28,
+        "miso":26,
+        "cs":29
+    },
+    "freq_cpu": 416000000,
+    "freq_pll1": 400000000,
+    "kpu_div": 1
+}

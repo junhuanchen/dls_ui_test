@@ -407,7 +407,8 @@ class AnimationPlayer:
         self.current_index = 0
         self.current_directory = None
         self.files = []
-        self.loop = False  # 是否循环播放
+        self.loop = False   # 是否循环播放
+        self._repeat_total = 1     # 新增：剩余播放次数
         self.callback = callback
         self.task_start = None
         self.play_start = None
@@ -455,17 +456,31 @@ class AnimationPlayer:
         self.current_index = 0
         self.current_directory = directory
 
-    def start(self, directory, start_file=1, end_file=None, loop=False):
-        """开始播放动画"""
+    def start(self, directory, start_file=1, end_file=None, loop=1):
+        """
+        loop: int
+            0 -> 不重复，仅播放一次
+            n -> 总共播放 n 次（n >= 1）
+        """
         try:
-            print(directory)
+            print(directory, loop)
             if self.state != PlayerState.IDLE:
                 self.pause()
+
             self._load_files(directory, start_file, end_file)
-            self.loop = loop
+
+            # 新语义：loop 为次数
+            if loop <= 0:
+                self._repeat_total = 1
+                self.loop = False
+            else:
+                self._repeat_total = int(loop)
+                self.loop = True       # 内部仍用布尔值判断是否继续循环
+
             self.state = PlayerState.PLAYING
             self.task_start = time.ticks_ms()
             self.play_start = time.ticks_ms()
+            self.current_index = 0   # 确保每次 start 都从第一帧开始
         except Exception as e:
             sys.print_exception(e)
     def pause(self):
@@ -502,12 +517,12 @@ class AnimationPlayer:
                     self.callback(self)
 
                 gc.collect()
-
                 self.current_index += 1
                 if self.current_index >= len(self.files):
-                    if self.loop:
+                    self._repeat_total -= 1          # 完成一轮
+                    if self._repeat_total > 0:       # 还需继续
                         self.current_index = 0
-                    else:
+                    else:                            # 全部播完
                         self.state = PlayerState.IDLE
 
                 # print("time: %s/%s Playing: %s, Index: %s/%s" % (time.ticks_ms(), time.ticks_ms() - run_time, image_path, self.current_index, len(self.files)))
@@ -520,6 +535,7 @@ class AnimationPlayer:
                     if actual_delay < self.delay:
                         tmp = (self.delay - actual_delay) * 0.001
                         time.sleep(tmp)  # 补充延时
+                        # print("sleep: %s", tmp)
                     else:
                         time.sleep(0.01)  # 如果实际延时大于期望延时，则延时0.01秒
             except Exception as e:
