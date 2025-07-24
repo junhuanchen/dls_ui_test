@@ -5,7 +5,7 @@ import time
 json_dict = {
     "action": "emoji",
     "priority": 2,
-    "value": "10",
+    "value": "hx",
     "loop": "3"
 }
 
@@ -18,6 +18,6 @@ def send_data(ser, data: bytes, gap=0.002, chunk=20):
         time.sleep(gap)
             
 with serial.Serial('COM33', 115200, timeout=1) as ser:
-    while True:
+    for i in range(1):
         send_data(ser, payload, gap=0.002, chunk=20)
         time.sleep(0.1)
