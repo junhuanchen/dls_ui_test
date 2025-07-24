@@ -7,9 +7,13 @@ from fpioa_manager import fm
 
 from gocan import protect, AnimationPlayer, EventContainer, Emocards, PriorityQueue, camera_ai_manager, PlayerState, DEBUG, Number
 
-# cube
-lcd.init(freq=15000000, type=2, invert=True, offset_w0=0, offset_h0=0, offset_w1=0, offset_h1=0, width=240, height=240, rst=37, dcx=38, ss=36, clk=39)
-lcd.rotation(2)
+# # cube
+# lcd.init(freq=15000000, type=2, invert=True, offset_w0=0, offset_h0=0, offset_w1=0, offset_h1=0, width=240, height=240, rst=37, dcx=38, ss=36, clk=39)
+# lcd.rotation(2)
+
+# maix bit
+lcd.init(freq=15000000, offset_w0=20, offset_h0=0, offset_w1=20, offset_h1=0, width=280, height=240, rst=37, dcx=38, ss=36, clk=39)
+lcd.clear(color=(0,0,0))
 
 fm.register(17, fm.fpioa.GPIOHS6, force=True)
 rst = GPIO(GPIO.GPIOHS6, GPIO.OUT)
@@ -127,6 +131,54 @@ def app():
         def get_current_path(self):
             return self.get_path(self.current_list[self.current.get()])
 
+
+        # ---------- 初始化 ----------
+        def show_all_init(self):
+            """在主循环开始前调用一次，初始化遍历列表。"""
+            try:
+                self._show_all_dirs = [d for d in os.listdir(self.base_path)]
+            except OSError:
+                self._show_all_dirs = []
+
+            self._show_all_idx = 0          # 当前播放下标
+            self._show_all_start_ts = None  # 当前目录开始时间（None 表示未启动）
+
+        # ---------- 每帧调用 ----------
+        def show_all_loop(self, player):
+            # 1. 首次或目录列表为空时初始化
+            try:
+                if not self._show_all_dirs:
+                    self.show_all_init()
+                    return
+            except AttributeError:
+                self.show_all_init()
+
+            now = time.time()
+
+            # 2. 当前没有任何目录在播放 -> 立即启动第一个
+            if self._show_all_start_ts is None:
+                self._switch_to_idx(player, self._show_all_idx)
+                return
+
+            # 3. 判断是否到达 3 s 时间片
+            if now - self._show_all_start_ts >= 3.0:
+                # 切换到下一个目录
+                next_idx = (self._show_all_idx + 1) % len(self._show_all_dirs)
+                if next_idx == 0:
+                    print("show_all: 全部动画播放完成")
+
+                self._switch_to_idx(player, next_idx)
+
+        # ---------- 内部工具 ----------
+        def _switch_to_idx(self, player, idx: int):
+            """真正切换到指定 idx 的目录并记录时间。"""
+            anim_dir = self._show_all_dirs[idx]
+            anim_path = self.get_path(anim_dir)
+
+            player.start(directory=anim_path, loop=True)
+            self._show_all_idx = idx
+            self._show_all_start_ts = time.time()
+            
     robot = robot_base()
 
     def event_check(player):
@@ -189,7 +241,7 @@ def app():
                 self._state.enter()
                 
         def update(self):
-            next_code = self._state.next_code()
+            next_code = self._state.next_code() # 状态转移每一次的期望，但不是必须的
             if next_code is not None and next_code != self._state.code:
                 self._state.exit()
                 self._state = self._state_map[next_code]
@@ -281,9 +333,13 @@ def app():
             return 3
 
     player.fsm = RobotFSM(robot, player)   # 放在 player 初始化之后即可
-    
+
     def robot_check(player):
         try:
+            player.delay = 50
+            robot.show_all_loop(player)
+            return # 测试动画的模式
+
             robot.social.sub(1)          # 3 秒一次的社交衰减
             player.fsm.update()          # 驱动状态机
 
