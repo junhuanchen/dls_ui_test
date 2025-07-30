@@ -49,12 +49,6 @@ def app():
 
     player = AnimationPlayer(prefix='', delay=125, callback=robot_ai_callback)  # 设置期望延时播放间隔为125ms
 
-    def body_vibrate(val, ms):
-        player.uart_call("vibrate", val=val, ms=ms)
-
-    def body_play(val):
-        player.uart_call("play", val=val)
-
     # player.start(directory='/sd/03_base_jpgs', start_file=0, end_file=None, loop=False)
 
     player.queue = PriorityQueue()

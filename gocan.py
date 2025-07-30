@@ -430,6 +430,12 @@ class AnimationPlayer:
         }
         self.uart.write((json.dumps(req) + '\n').encode())
 
+    def body_vibrate(self, melody:list):
+        self.uart_call("vibrate", melody=melody)
+
+    def body_play(self, melody:list):
+        self.uart_call("play", melody=melody)
+
     def _load_files(self, directory, start_file=1, end_file=None):
         """加载指定目录中的文件"""
         files = os.listdir(directory)
