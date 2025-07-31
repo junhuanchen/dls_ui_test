@@ -1,4 +1,5 @@
 
+import aplay
 import time
 import heapq
 
@@ -430,12 +431,6 @@ class AnimationPlayer:
         }
         self.uart.write((json.dumps(req) + '\n').encode())
 
-    def body_vibrate(self, melody:list):
-        self.uart_call("vibrate", melody=melody)
-
-    def body_play(self, melody:list):
-        self.uart_call("play", melody=melody)
-
     def _load_files(self, directory, start_file=1, end_file=None):
         """加载指定目录中的文件"""
         files = os.listdir(directory)
@@ -515,7 +510,9 @@ class AnimationPlayer:
                 file_name = self.files[self.current_index]
                 run_time = time.ticks_ms()
                 image_path = self.current_directory + '/' + file_name
+                aplay.tick()
                 snapshot = image.Image(image_path)
+                aplay.tick()
                 lcd.display(snapshot)
                 del snapshot
 
@@ -532,18 +529,19 @@ class AnimationPlayer:
                         self.state = PlayerState.IDLE
 
                 # print("time: %s/%s Playing: %s, Index: %s/%s" % (time.ticks_ms(), time.ticks_ms() - run_time, image_path, self.current_index, len(self.files)))
-                elapsed_time = time.ticks_ms() - self.play_start
-                expected_time = self.delay * self.current_index
-                if elapsed_time > expected_time + self.delay:  # 如果滞后超过100ms，则不延时
-                    pass
-                else:
-                    actual_delay = time.ticks_ms() - run_time
-                    if actual_delay < self.delay:
-                        tmp = (self.delay - actual_delay) * 0.001
-                        time.sleep(tmp)  # 补充延时
-                        # print("sleep: %s", tmp)
-                    else:
-                        time.sleep(0.01)  # 如果实际延时大于期望延时，则延时0.01秒
+                # 对时逻辑，目前应该不需要了
+                # elapsed_time = time.ticks_ms() - self.play_start
+                # expected_time = self.delay * self.current_index
+                # if elapsed_time > expected_time + self.delay:  # 如果滞后超过100ms，则不延时
+                #     pass
+                # else:
+                #     actual_delay = time.ticks_ms() - run_time
+                #     if actual_delay < self.delay:
+                #         tmp = (self.delay - actual_delay) * 0.001
+                #         time.sleep(tmp)  # 补充延时
+                #         # print("sleep: %s", tmp)
+                #     else:
+                #         time.sleep(0.01)  # 如果实际延时大于期望延时，则延时0.01秒
             except Exception as e:
                 sys.print_exception(e)
                 self.state = PlayerState.IDLE
@@ -552,7 +550,7 @@ class AnimationPlayer:
         else:
             if self.callback:
                 self.callback(self)
-            time.sleep(0.1)  # 延时等待，避免CPU占用过高
+            # time.sleep(0.1)  # 延时等待，避免CPU占用过高
 
     def get_current_status(self):
         """获取当前播放状态"""

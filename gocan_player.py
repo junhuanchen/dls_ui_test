@@ -5,7 +5,7 @@ import gc, sys
 from Maix import GPIO
 from fpioa_manager import fm
 
-from gocan import protect, AnimationPlayer, EventContainer, Emocards, PriorityQueue, camera_ai_manager, PlayerState, DEBUG, Number
+from gocan import aplay, protect, AnimationPlayer, EventContainer, Emocards, PriorityQueue, camera_ai_manager, PlayerState, DEBUG, Number
 
 # # cube
 # lcd.init(freq=15000000, type=2, invert=True, offset_w0=0, offset_h0=0, offset_w1=0, offset_h1=0, width=240, height=240, rst=37, dcx=38, ss=36, clk=39)
@@ -31,6 +31,7 @@ def app():
     camera_ai_manager.task_start = time.ticks_ms()
     camera_ai_manager.task_select = 0
     def robot_ai_callback(self):
+        # return None
         if self.is_paused() or time.ticks_ms() - camera_ai_manager.task_start > 250:
             # camera_ai_manager.task_select += 1
             img = sensor.snapshot()
@@ -49,11 +50,30 @@ def app():
 
     player = AnimationPlayer(prefix='', delay=125, callback=robot_ai_callback)  # 设置期望延时播放间隔为125ms
 
-    # player.start(directory='/sd/03_base_jpgs', start_file=0, end_file=None, loop=False)
+    def body_vibrate(val, ms):
+        player.uart_call("vibrate", val=val, ms=ms)
 
+    def body_play(val):
+        player.uart_call("play", val=val)
+
+    def trigger_all(player, directory, loop, audio=None, rpc=None):
+        player.start(directory=directory, loop=loop)
+        if audio:
+            print(audio)
+            aplay.play(audio) # '/sd/audio/1.wav'
+        if rpc:
+            print(rpc)
+            player.uart_call(rpc)
+        
     player.queue = PriorityQueue()
     player.container = EventContainer()
     player.emocards = Emocards()
+
+    def aplay_tick():
+        import aplay
+        aplay.tick()
+
+    player.agent.event(20, aplay_tick, None)
 
     def sensor_check(player):
         # 检查player的uart是否有数据
@@ -190,7 +210,7 @@ def app():
         # ==================== 02 AI 事件发布区域 ====================
         # print("time", time.time(), "Updated events:", player.container.get_events()) 
         for key, value in player.container.get_events().items():
-            if value > 0.25: # 连续平均阈值
+            if value > 0.15: # 连续平均阈值
                 ai_event = {
                     "action": key,
                     "value": value,
@@ -270,7 +290,7 @@ def app():
         code = 0
         def enter(self):
             super().enter()
-            self.p.start(directory=self.r.get_current_path(), loop=1)
+            trigger_all(self.p, self.r.get_current_path(), loop=1, audio='/sd/audio/1.wav')
 
         def next_code(self):
             if self.r.social.get() > 3:
@@ -283,7 +303,7 @@ def app():
         def enter(self):
             super().enter()
             self.r.social.set(3)
-            self.p.start(directory=self.r.get_current_path(), loop=3)
+            trigger_all(self.p, self.r.get_current_path(), loop=3, audio='/sd/audio/2.wav')
 
         def next_code(self):
             if self.p.is_paused():
@@ -309,11 +329,11 @@ def app():
         def enter(self):
             super().enter()
             if self.p.is_paused():
-                self.p.start(directory=self.r.get_current_path(), loop=2)
+                trigger_all(self.p, self.r.get_current_path(), loop=2, audio='/sd/audio/1.wav')
 
         def tick(self):
             if self.p.is_paused():
-                self.p.start(directory=self.r.get_current_path(), loop=2)
+                trigger_all(self.p, self.r.get_current_path(), loop=2, audio='/sd/audio/3.wav')
 
 
         def next_code(self):
@@ -330,11 +350,7 @@ def app():
         code = 4
         def enter(self):
             super().enter()
-            self.p.start(directory=self.r.get_current_path(), loop=2)
-            if self.p.is_paused():
-                self.r.social.sub(2)
-            else:
-                self.r.social.add(1)
+            trigger_all(self.p, self.r.get_current_path(), loop=2, audio='/sd/audio/4.wav')
 
         def next_code(self):
             if self.r.life.get() < 1 or self.r.social.get() < 1:
