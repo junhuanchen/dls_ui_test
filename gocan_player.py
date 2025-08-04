@@ -20,7 +20,7 @@ rst = GPIO(GPIO.GPIOHS6, GPIO.OUT)
 rst.value(0)
 
 # gocan
-# lcd.init(freq=15000000, offset_w0=20, offset_h0=0, offset_w1=20, offset_h1=0, width=280, height=240, rst=39, dcx=38, ss=37, clk=36)
+# lcd.init(freq=15000000, offset_w0=20, offset_h0=0, offset_w1=20, offset_h1=0, width=280, height=240, rst=39, dcx=38, ss=37, clk=36, invert=1)
 # lcd.direction(lcd.YX_RLDU)
 
 def app():
@@ -49,12 +49,6 @@ def app():
                 camera_ai_manager.add_data(result)
 
     player = AnimationPlayer(prefix='', delay=125, callback=robot_ai_callback)  # 设置期望延时播放间隔为125ms
-
-    def body_vibrate(val, ms):
-        player.uart_call("vibrate", val=val, ms=ms)
-
-    def body_play(val):
-        player.uart_call("play", val=val)
 
     def trigger_all(player, directory, loop, audio=None, rpc=None):
         player.start(directory=directory, loop=loop)
@@ -130,7 +124,7 @@ def app():
 
             self.base_path = "/sd/base"
             # self.current_list = ["deep", "sleep", "awake", "bored", "express"]
-            self.current_list = ["pc", "xm", "pj", "xy", "kx"] # 关机、休眠、平静，喜悦，开心
+            self.current_list = ["guanji", "xiumian", "wuliao", "xiyue", "kaixin"] # 关机、休眠、平静，喜悦，开心
             self.current = Number(0, 4, 2)  # 反馈状态，用于标记情绪表达的结果，以及唤醒或休眠的状态值，这样可以用作下一次的状态参考
             self.life   = Number(0, 10, 10) # 生命值，从 20 到 1，当生命小于 1 时，关机，刚醒来时，没有同步电量的情况下，会假定满电量
             self.social = Number(0, 10, 10) # 社交指数，从 0 到 10，当社交指数小于 1 时，准备睡觉，如果有人出现，社交指数会升到 5 ，如果到 10 则触发专属彩蛋动画。
