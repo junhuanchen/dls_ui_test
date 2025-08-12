@@ -5,15 +5,25 @@ import audio
 import gc
 import time
 
+# # ---------- 硬件一次性初始化 ----------
+# fm.register(8,  fm.fpioa.GPIO0, force=True)
+# fm.register(32, fm.fpioa.GPIO1, force=True)
+# tmp = GPIO(GPIO.GPIO0, GPIO.OUT); tmp.value(0)
+# tmp = GPIO(GPIO.GPIO1, GPIO.OUT); tmp.value(1)
+
+# fm.register(34, fm.fpioa.I2S0_OUT_D1, force=True)
+# fm.register(35, fm.fpioa.I2S0_SCLK,   force=True)
+# fm.register(33, fm.fpioa.I2S0_WS,     force=True)
+
 # ---------- 硬件一次性初始化 ----------
-fm.register(8,  fm.fpioa.GPIO0, force=True)
-fm.register(32, fm.fpioa.GPIO1, force=True)
+fm.register(9,  fm.fpioa.GPIO0, force=True)
+fm.register(10, fm.fpioa.GPIO1, force=True)
 tmp = GPIO(GPIO.GPIO0, GPIO.OUT); tmp.value(0)
 tmp = GPIO(GPIO.GPIO1, GPIO.OUT); tmp.value(1)
 
-fm.register(34, fm.fpioa.I2S0_OUT_D1, force=True)
-fm.register(35, fm.fpioa.I2S0_SCLK,   force=True)
-fm.register(33, fm.fpioa.I2S0_WS,     force=True)
+fm.register(11, fm.fpioa.I2S0_OUT_D1, force=True)
+fm.register(12, fm.fpioa.I2S0_SCLK,   force=True)
+fm.register(13, fm.fpioa.I2S0_WS,     force=True)
 
 _i2s = I2S(I2S.DEVICE_0)
 

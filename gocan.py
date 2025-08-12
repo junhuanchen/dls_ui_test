@@ -439,13 +439,12 @@ class AnimationPlayer:
 
     def _load_files(self, directory, start_file=1, end_file=None):
         """加载指定目录中的文件"""
-        files = os.listdir(directory)
+        files = sorted(os.listdir(directory))
         parts = directory.split('/')
         self.prefix = parts[-1]
         self.files = [file for file in files if file.startswith(self.prefix) and file.endswith('.jpg')]
         if not self.files:
             raise ValueError("No files found with the specified prefix in the current directory.")
-        # print(self.files)
         file_numbers = [int(file[len(self.prefix):-4]) for file in self.files]
         # print(file_numbers)
         if start_file not in file_numbers:

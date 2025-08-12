@@ -12,16 +12,16 @@ from gocan import aplay, protect, AnimationPlayer, EventContainer, Emocards, Pri
 # lcd.rotation(2)
 
 # maix bit
-lcd.init(freq=15000000, offset_w0=20, offset_h0=0, offset_w1=20, offset_h1=0, width=280, height=240, rst=37, dcx=38, ss=36, clk=39)
-lcd.clear(color=(0,0,0))
+# lcd.init(freq=15000000, offset_w0=20, offset_h0=0, offset_w1=20, offset_h1=0, width=280, height=240, rst=37, dcx=38, ss=36, clk=39)
+# lcd.clear(color=(0,0,0))
 
-fm.register(17, fm.fpioa.GPIOHS6, force=True)
-rst = GPIO(GPIO.GPIOHS6, GPIO.OUT)
-rst.value(0)
+# fm.register(17, fm.fpioa.GPIOHS6, force=True)
+# rst = GPIO(GPIO.GPIOHS6, GPIO.OUT)
+# rst.value(0)
 
 # gocan
-# lcd.init(freq=15000000, offset_w0=20, offset_h0=0, offset_w1=20, offset_h1=0, width=280, height=240, rst=39, dcx=38, ss=37, clk=36, invert=1)
-# lcd.direction(lcd.YX_RLDU)
+lcd.init(freq=15000000, offset_w0=20, offset_h0=0, offset_w1=20, offset_h1=0, width=280, height=240, rst=39, dcx=38, ss=37, clk=36, invert=1)
+lcd.direction(lcd.YX_RLDU)
 
 def app():
 
