@@ -38,6 +38,7 @@ def _stop():
     global _player, _on_finish
     if _player:
         _player.finish()
+        time.sleep_ms(20)
         _player = None
     gc.collect()
     if _on_finish:

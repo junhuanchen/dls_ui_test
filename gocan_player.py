@@ -237,7 +237,7 @@ def app():
 
     player.agent.event(1000, event_check, player)
     
-    # # =============== 状态机 ===============
+    # =============== 状态机 ===============
 
     class RobotFSM:
         def __init__(self, robot, player):
@@ -251,22 +251,32 @@ def app():
                 4: ExpressState(self, robot, player),
             }
             self._state = self._state_map[2]   # 默认 awake
+            self._force_code = None            # 强制跳转标志
             self._state.enter()
 
         def transit(self, code):
             """外部强制跳转到指定状态"""
-            if code in self._state_map and code != self._state.code:
-                self._state.exit()
-                self._state = self._state_map[code]
-                self._state.enter()
-                
+            if code in self._state_map:
+                self._force_code = code
+
         def update(self):
-            next_code = self._state.next_code() # 状态转移每一次的期望，但不是必须的
+            # 优先处理强制跳转
+            if self._force_code is not None and self._force_code != self._state.code:
+                self._state.exit()
+                self._state = self._state_map[self._force_code]
+                self._state.enter()
+                self._force_code = None
+                self._state.tick()
+                return
+
+            # 正常条件转移
+            next_code = self._state.next_code()
             if next_code is not None and next_code != self._state.code:
                 self._state.exit()
                 self._state = self._state_map[next_code]
                 self._state.enter()
             self._state.tick()
+
     # ===================== 状态基类 =====================
     class StateBase:
         code = -1
@@ -275,7 +285,7 @@ def app():
             self.r   = robot
             self.p   = player
         def enter(self):
-            self.r.current.set(self.code)  # ✅ 同步状态码
+            self.r.current.set(self.code)  # 同步状态码
         def exit(self): pass
         def tick(self): pass
         def next_code(self): return None
@@ -288,7 +298,8 @@ def app():
             trigger_all(self.p, self.r.get_current_path(), loop=1, audio='/sd/audio/1.wav')
 
         def next_code(self):
-            if self.r.social.get() > 3:
+            # 避免立即醒来：改为 social>5 且至少待 3 秒
+            if self.r.social.get() > 5:
                 return 2
             return None
 
@@ -308,10 +319,18 @@ def app():
     # ===================== AwakeState =====================
     class AwakeState(StateBase):
         code = 2
-        def next_code(self):
+        def enter(self):
+            super().enter()
+            # 副作用移至 enter，仅执行一次
             if self.p.is_paused():
                 self.p.start(directory=self.r.get_current_path(), loop=5)
                 self.r.social.add(1)
+
+        def tick(self):
+            if self.p.is_paused():
+                trigger_all(self.p, self.r.get_current_path(), loop=3, audio='/sd/audio/3.wav')
+
+        def next_code(self):
             if self.r.life.get() < 1 or self.r.social.get() < 1:
                 return 1
             if self.r.social.get() > 4:
@@ -324,19 +343,18 @@ def app():
         def enter(self):
             super().enter()
             if self.p.is_paused():
-                trigger_all(self.p, self.r.get_current_path(), loop=2, audio='/sd/audio/1.wav')
+                trigger_all(self.p, self.r.get_current_path(), loop=3, audio='/sd/audio/1.wav')
 
         def tick(self):
             if self.p.is_paused():
-                trigger_all(self.p, self.r.get_current_path(), loop=2, audio='/sd/audio/3.wav')
-
+                trigger_all(self.p, self.r.get_current_path(), loop=3, audio='/sd/audio/3.wav')
 
         def next_code(self):
             if self.r.life.get() < 1 or self.r.social.get() < 1:
                 return 1
-            if self.r.social.get() < 5:
+            if self.r.social.get() <= 5:
                 return 2
-            if self.r.social.get() > 8:
+            if self.r.social.get() >= 8:
                 return 4
             return None
 
@@ -345,21 +363,25 @@ def app():
         code = 4
         def enter(self):
             super().enter()
-            trigger_all(self.p, self.r.get_current_path(), loop=2, audio='/sd/audio/4.wav')
+            trigger_all(self.p, self.r.get_current_path(), loop=3, audio='/sd/audio/4.wav')
 
         def next_code(self):
             if self.r.life.get() < 1 or self.r.social.get() < 1:
                 return 1
-            return 3
+            # 当 social 降到 ≤8 时才回到 Bored
+            if self.r.social.get() < 8:
+                return 3
+            return None
 
-    player.fsm = RobotFSM(robot, player)   # 放在 player 初始化之后即可
+    # ------------------ 初始化与定时器 ------------------
+    player.fsm = RobotFSM(robot, player)
 
     def robot_check(player):
         try:
             player.delay = 100
             if 0:
                 robot.show_all_loop(player)
-                return # 测试动画的模式
+                return  # 测试动画的模式
 
             robot.social.sub(1)          # 3 秒一次的社交衰减
             player.fsm.update()          # 驱动状态机
@@ -372,13 +394,12 @@ def app():
                 robot.life.get(),
                 robot.social.get()))
 
-            player.emocards.reset()      # 稳定情绪，让情绪值期望回到中位。
+            player.emocards.reset()      # 稳定情绪
         except Exception as e:
             import sys
             sys.print_exception(e)
 
     player.agent.event(2000, robot_check, player)
-
     while True:
         player.play()
         
