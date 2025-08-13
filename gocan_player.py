@@ -255,7 +255,7 @@ def app():
             self._state.enter()
 
         def transit(self, code):
-            """外部强制跳转到指定状态"""
+            """外部强制跳转到指定状态"""·
             if code in self._state_map:
                 self._force_code = code
 
@@ -329,7 +329,8 @@ def app():
         def tick(self):
             if self.p.is_paused():
                 trigger_all(self.p, self.r.get_current_path(), loop=3, audio='/sd/audio/3.wav')
-
+            # 可以在此表达实际情绪的状态，当动画没有播放的时候，可以传达此时的声光电效果
+            
         def next_code(self):
             if self.r.life.get() < 1 or self.r.social.get() < 1:
                 return 1
@@ -348,6 +349,7 @@ def app():
         def tick(self):
             if self.p.is_paused():
                 trigger_all(self.p, self.r.get_current_path(), loop=3, audio='/sd/audio/3.wav')
+            # 可以在此表达实际情绪的状态，当动画没有播放的时候，可以传达此时的声光电效果
 
         def next_code(self):
             if self.r.life.get() < 1 or self.r.social.get() < 1:
