@@ -357,8 +357,9 @@ def app():
     def robot_check(player):
         try:
             player.delay = 100
-            robot.show_all_loop(player)
-            return # 测试动画的模式
+            if 0:
+                robot.show_all_loop(player)
+                return # 测试动画的模式
 
             robot.social.sub(1)          # 3 秒一次的社交衰减
             player.fsm.update()          # 驱动状态机
