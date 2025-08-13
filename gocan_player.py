@@ -51,7 +51,18 @@ def app():
     player = AnimationPlayer(prefix='', delay=125, callback=robot_ai_callback)  # 设置期望延时播放间隔为125ms
 
     def trigger_all(player, directory, loop, audio=None, rpc=None):
-        player.start(directory=directory, loop=loop)
+        r = player.fsm.robot
+        if player.emocards.current_mapped == (1, 1):
+            print("1,1,0,shangxin")
+        elif player.emocards.current_mapped == (1, 3):
+            print("1,3,1,xiyue")
+        elif player.emocards.current_mapped == (3, 1):
+            print("3,1,2,nushi")
+        elif player.emocards.current_mapped == (3, 3):
+            print("3,3,3,kaixin")
+            player.start(directory=r.get_path(self.emocards_list[]), loop=loop)
+        else:
+            player.start(directory=directory, loop=loop)
         if audio:
             print(audio)
             aplay.play(audio) # '/sd/audio/1.wav'
@@ -124,7 +135,10 @@ def app():
 
             self.base_path = "/sd/base"
             # self.current_list = ["deep", "sleep", "awake", "bored", "express"]
+
+            self.emocards_list = ["shangxin", "xiyue", "nushi", "kaixin"]
             self.current_list = ["guanji", "xiumian", "wuliao", "xiyue", "kaixin"] # 关机、休眠、平静，喜悦，开心
+            
             self.current = Number(0, 4, 2)  # 反馈状态，用于标记情绪表达的结果，以及唤醒或休眠的状态值，这样可以用作下一次的状态参考
             self.life   = Number(0, 10, 10) # 生命值，从 20 到 1，当生命小于 1 时，关机，刚醒来时，没有同步电量的情况下，会假定满电量
             self.social = Number(0, 10, 10) # 社交指数，从 0 到 10，当社交指数小于 1 时，准备睡觉，如果有人出现，社交指数会升到 5 ，如果到 10 则触发专属彩蛋动画。
@@ -329,7 +343,6 @@ def app():
         def tick(self):
             if self.p.is_paused():
                 trigger_all(self.p, self.r.get_current_path(), loop=3, audio='/sd/audio/3.wav')
-            # 可以在此表达实际情绪的状态，当动画没有播放的时候，可以传达此时的声光电效果
             
         def next_code(self):
             if self.r.life.get() < 1 or self.r.social.get() < 1:
@@ -349,7 +362,6 @@ def app():
         def tick(self):
             if self.p.is_paused():
                 trigger_all(self.p, self.r.get_current_path(), loop=3, audio='/sd/audio/3.wav')
-            # 可以在此表达实际情绪的状态，当动画没有播放的时候，可以传达此时的声光电效果
 
         def next_code(self):
             if self.r.life.get() < 1 or self.r.social.get() < 1:
