@@ -155,6 +155,7 @@ def app():
                 self._show_all_dirs = [d for d in os.listdir(self.base_path)]
             except OSError:
                 self._show_all_dirs = []
+            print("show_all: ", self._show_all_dirs)
 
             self._show_all_idx = 0          # 当前播放下标
             self._show_all_start_ts = None  # 当前目录开始时间（None 表示未启动）
@@ -181,7 +182,7 @@ def app():
                 # 切换到下一个目录
                 next_idx = (self._show_all_idx + 1) % len(self._show_all_dirs)
                 if next_idx == 0:
-                    print("show_all: 全部动画播放完成")
+                    print("show_all: over")
 
                 self._switch_to_idx(player, next_idx)
 
@@ -191,7 +192,7 @@ def app():
             anim_dir = self._show_all_dirs[idx]
             anim_path = self.get_path(anim_dir)
 
-            player.start(directory=anim_path, loop=True)
+            player.start(directory=anim_path, loop=5)
             self._show_all_idx = idx
             self._show_all_start_ts = time.time()
             
@@ -356,8 +357,8 @@ def app():
     def robot_check(player):
         try:
             player.delay = 100
-            # robot.show_all_loop(player)
-            # return # 测试动画的模式
+            robot.show_all_loop(player)
+            return # 测试动画的模式
 
             robot.social.sub(1)          # 3 秒一次的社交衰减
             player.fsm.update()          # 驱动状态机
