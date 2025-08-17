@@ -416,8 +416,8 @@ class AnimationPlayer:
         self.task_flag = None
         self.agent = agent()
         from fpioa_manager import fm
-        fm.register(25, fm.fpioa.UART1_TX, force=True)
-        fm.register(24, fm.fpioa.UART1_RX, force=True)
+        fm.register(20, fm.fpioa.UART1_TX, force=True)
+        fm.register(21, fm.fpioa.UART1_RX, force=True)
         from machine import UART
         self.uart = UART(UART.UART1, 115200, 8, 1, 0, timeout=1000, read_buf_len=4096)
 

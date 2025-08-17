@@ -21,6 +21,9 @@ from gocan_config import robot_base
 # rst.value(0)
 
 # gocan
+fm.register(34,fm.fpioa.GPIO4)
+rd=GPIO(GPIO.GPIO4,GPIO.OUT)
+rd.value(1)
 lcd.init(freq=15000000, offset_w0=20, offset_h0=0, offset_w1=20, offset_h1=0, width=280, height=240, rst=39, dcx=38, ss=37, clk=36, invert=1)
 lcd.direction(lcd.YX_RLDU)
 
