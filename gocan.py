@@ -416,8 +416,8 @@ class AnimationPlayer:
         self.task_flag = None
         self.agent = agent()
         from fpioa_manager import fm
-        fm.register(20, fm.fpioa.UART1_TX, force=True)
-        fm.register(21, fm.fpioa.UART1_RX, force=True)
+        fm.register(25, fm.fpioa.UART1_TX, force=True)
+        fm.register(24, fm.fpioa.UART1_RX, force=True)
         from machine import UART
         self.uart = UART(UART.UART1, 115200, 8, 1, 0, timeout=1000, read_buf_len=4096)
 
@@ -439,12 +439,13 @@ class AnimationPlayer:
 
     def _load_files(self, directory, start_file=1, end_file=None):
         """加载指定目录中的文件"""
-        files = sorted(os.listdir(directory))
+        files = os.listdir(directory)
         parts = directory.split('/')
         self.prefix = parts[-1]
         self.files = [file for file in files if file.startswith(self.prefix) and file.endswith('.jpg')]
         if not self.files:
             raise ValueError("No files found with the specified prefix in the current directory.")
+        # print(self.files)
         file_numbers = [int(file[len(self.prefix):-4]) for file in self.files]
         # print(file_numbers)
         if start_file not in file_numbers:
