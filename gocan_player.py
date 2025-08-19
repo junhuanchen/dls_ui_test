@@ -63,7 +63,7 @@ def app():
         import aplay
         aplay.tick()
 
-    player.agent.event(20, aplay_tick, None)
+    player.agent.event(100, aplay_tick, None)
 
     def sensor_check(player):
         # 检查player的uart是否有数据

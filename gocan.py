@@ -515,9 +515,9 @@ class AnimationPlayer:
                 file_name = self.files[self.current_index]
                 run_time = time.ticks_ms()
                 image_path = self.current_directory + '/' + file_name
-                aplay.tick()
+                # aplay.tick()
                 snapshot = image.Image(image_path)
-                aplay.tick()
+                # aplay.tick()
                 lcd.display(snapshot)
                 del snapshot
 
