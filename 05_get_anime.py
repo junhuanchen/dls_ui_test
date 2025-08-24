@@ -23,8 +23,8 @@ def convert_video(input_file, output_base_folder, frame_rate):
         "ffmpeg",
         "-i", input_file,  # 输入文件
         "-r", str(frame_rate),  # 设置帧率
-        # "-vf", "scale=240:280",  # 设置分辨率
-        "-vf", "crop=ih*6/7:ih,scale=280:240",
+        "-vf", "scale=280:240",  # 设置分辨率
+        # "-vf", "crop=ih*6/7:ih,scale=280:240",
         "-c:v", "mjpeg",  # 使用 MJPEG 编码
         "-pix_fmt", "yuvj420p",  # 设置像素格式
         # "-aspect", "3:4",  # 设置显示宽高比
