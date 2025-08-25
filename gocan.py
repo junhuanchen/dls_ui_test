@@ -189,7 +189,8 @@ from machine import WDT
 class protect:
     wdt = None
     def start():
-        protect.wdt = WDT(id=0, timeout=3000)  # protect.stop()
+        pass
+        # protect.wdt = WDT(id=0, timeout=3000)  # protect.stop()
     def keep():
         if protect.wdt:
             protect.wdt.feed()
@@ -394,6 +395,7 @@ camera_ai_manager.power_on()
 
 import ujson as json
 import random
+from Maix import lottie
 
 class PlayerState:
     IDLE = 1
@@ -401,13 +403,12 @@ class PlayerState:
     PAUSED = 3
 
 class AnimationPlayer:
-    def __init__(self, prefix='', delay=100, callback=None):
-        self.prefix = prefix
+    def __init__(self, delay=100, callback=None):
         self.delay = delay  # 期望延时播放间隔（单位：毫秒）
         self.state = PlayerState.IDLE  # 初始状态为 IDLE
         self.current_index = 0
-        self.current_directory = None
-        self.files = []
+        self.current_file = None
+        self.total = 0
         self.loop = False   # 是否循环播放
         self._repeat_total = 1     # 新增：剩余播放次数
         self.callback = callback
@@ -420,6 +421,7 @@ class AnimationPlayer:
         fm.register(21, fm.fpioa.UART1_RX, force=True)
         from machine import UART
         self.uart = UART(UART.UART1, 115200, 8, 1, 0, timeout=1000, read_buf_len=4096)
+        lottie.init()
 
     def uart_call(self, func_name, **kwargs):
         """UART JSON RPC"""
@@ -437,43 +439,35 @@ class AnimationPlayer:
     def body_play(self, melody:list):
         self.uart_call("play", melody=melody)
 
-    def _load_files(self, directory, start_file=1, end_file=None):
-        """加载指定目录中的文件"""
-        files = sorted(os.listdir(directory))
-        parts = directory.split('/')
-        self.prefix = parts[-1]
-        self.files = [file for file in files if file.startswith(self.prefix) and file.endswith('.jpg')]
-        if not self.files:
-            raise ValueError("No files found with the specified prefix in the current directory.")
-        file_numbers = [int(file[len(self.prefix):-4]) for file in self.files]
-        # print(file_numbers)
-        if start_file not in file_numbers:
-            raise ValueError("Start file %s not found in the current directory." % start_file)
-        if end_file is not None and end_file not in file_numbers:
-            raise ValueError("End file %s not found in the current directory." % end_file)
-        if end_file is not None and start_file > end_file:
-            raise ValueError("Start file number must be less than or equal to end file number.")
-        start_index = file_numbers.index(start_file)
-        if end_file is None:
-            self.files = self.files[start_index:]
-        else:
-            end_index = file_numbers.index(end_file) + 1
-            self.files = self.files[start_index:end_index]
-        self.current_index = 0
-        self.current_directory = directory
+    def body_poweroff(self, sleep:int):
+        self.uart_call("power_off", val=sleep)
 
-    def start(self, directory, start_file=1, end_file=None, loop=1):
+    def _load(self, file_path, start_index=0, end_index=None):
+        # todo start_index=0, end_index=None
+        import KPU
+        with open(file_path) as f:
+            print("load")
+            tmp = f.read()
+            print(len(tmp))
+            lottie.load(tmp)
+            print("load ok")
+        self.current_index = 0
+        self.current_file = file_path
+        self.total = lottie.total()
+        print("total: ", self.total)
+
+    def start(self, file_path, start_index=0, end_index=None, loop=1):
         """
         loop: int
             0 -> 不重复，仅播放一次
             n -> 总共播放 n 次（n >= 1）
         """
         try:
-            print(directory, loop)
+            print(file_path, loop)
             if self.state != PlayerState.IDLE:
                 self.pause()
 
-            self._load_files(directory, start_file, end_file)
+            self._load(file_path, start_index, end_index)
 
             # 新语义：loop 为次数
             if loop <= 0:
@@ -486,7 +480,6 @@ class AnimationPlayer:
             self.state = PlayerState.PLAYING
             self.task_start = time.ticks_ms()
             self.play_start = time.ticks_ms()
-            self.current_index = 0   # 确保每次 start 都从第一帧开始
         except Exception as e:
             sys.print_exception(e)
     def pause(self):
@@ -509,31 +502,23 @@ class AnimationPlayer:
     def play(self):
         self.agent.parallel_cycle()
         """播放动画"""
-        if self.state == PlayerState.PLAYING and self.files:
+        if self.state == PlayerState.PLAYING and self.current_file:
             try:
-                snapshot = None
-                file_name = self.files[self.current_index]
                 run_time = time.ticks_ms()
-                image_path = self.current_directory + '/' + file_name
-                # aplay.tick()
-                snapshot = image.Image(image_path)
-                # aplay.tick()
-                lcd.display(snapshot)
-                del snapshot
-
+                lottie.view(self.current_index)
                 if self.callback:
                     self.callback(self)
 
                 gc.collect()
                 self.current_index += 1
-                if self.current_index >= len(self.files):
+                if self.current_index >= self.total:
                     self._repeat_total -= 1          # 完成一轮
                     if self._repeat_total > 0:       # 还需继续
                         self.current_index = 0
                     else:                            # 全部播完
                         self.state = PlayerState.IDLE
 
-                # print("time: %s/%s Playing: %s, Index: %s/%s" % (time.ticks_ms(), time.ticks_ms() - run_time, image_path, self.current_index, len(self.files)))
+                # print("time: %s/%s, Index: %s/%s" % (time.ticks_ms(), time.ticks_ms() - run_time, self.current_index, self.total))
                 # 对时逻辑，目前应该不需要了
                 # elapsed_time = time.ticks_ms() - self.play_start
                 # expected_time = self.delay * self.current_index
@@ -573,6 +558,8 @@ class AnimationPlayer:
     @staticmethod
     def unit_test():
         global DEBUG
+        # todo lottie test
+        return
         # from robot_ai import camera_ai_manager
         for model_info in camera_ai_manager.model_list:
             if not model_info['initialized']:

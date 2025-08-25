@@ -6,7 +6,7 @@ from Maix import GPIO
 from fpioa_manager import fm
 
 from gocan import aplay, protect, AnimationPlayer, EventContainer, Emocards, PriorityQueue, camera_ai_manager, PlayerState, DEBUG, Number
-from gocan_config import robot_base
+from gocan_config import Robot
 
 # # cube
 # lcd.init(freq=15000000, type=2, invert=True, offset_w0=0, offset_h0=0, offset_w1=0, offset_h1=0, width=240, height=240, rst=37, dcx=38, ss=36, clk=39)
@@ -52,7 +52,7 @@ def app():
                 # print(result)
                 camera_ai_manager.add_data(result)
 
-    player = AnimationPlayer(prefix='', delay=125, callback=robot_ai_callback)  # 设置期望延时播放间隔为125ms
+    player = AnimationPlayer(delay=125, callback=robot_ai_callback)  # 设置期望延时播放间隔为125ms
 
     player.queue = PriorityQueue()
     player.container = EventContainer()
@@ -60,10 +60,9 @@ def app():
     player.robot = Robot()
 
     def aplay_tick():
-        import aplay
         aplay.tick()
 
-    player.agent.event(100, aplay_tick, None)
+    player.agent.event(250, aplay_tick, None)
 
     def sensor_check(player):
         # 检查player的uart是否有数据
@@ -90,7 +89,7 @@ def app():
                 print("Error parsing JSON: ", e)
         else:
             pass
-    player.agent.event(250, sensor_check, player)
+    # player.agent.event(250, sensor_check, player)
 
     def ai_check(player):
         player.container.decay_events() # 衰减事件
@@ -98,7 +97,7 @@ def app():
             result = camera_ai_manager.get_data()
             # print(result)
             player.container.update_events(result['detections'])
-    player.agent.event(250, ai_check, player)
+    # player.agent.event(250, ai_check, player)
 
     def event_check(player):
         # kpu.memtest()
@@ -124,9 +123,9 @@ def app():
                 print("event", event.data)
                 player.robot.event_express(event)
                 # 情感需求处理
-                player.emocards.update(robot.event_effects, event.data["action"])
+                player.emocards.update(player.robot.event_effects, event.data["action"])
 
-    player.agent.event(1000, event_check, player)
+    # player.agent.event(1000, event_check, player)
     
     # =============== 状态机 ===============
 
@@ -146,7 +145,7 @@ def app():
             self._state.enter()
 
         def transit(self, code):
-            """外部强制跳转到指定状态"""·
+            """外部强制跳转到指定状态"""
             if code in self._state_map:
                 self._force_code = code
 
@@ -214,7 +213,7 @@ def app():
             super().enter()
             # 副作用移至 enter，仅执行一次
             if self.p.is_paused():
-                self.p.start(directory=self.r.get_current_path(), loop=5)
+                # self.p.start(file_path=self.r.get_current_path(), loop=5)
                 self.r.social.add(1)
 
         def tick(self):
@@ -265,25 +264,35 @@ def app():
             return None
 
     # ------------------ 初始化与定时器 ------------------
-    player.fsm = RobotFSM(robot, player)
+    player.fsm = RobotFSM(player.robot, player)
 
+    i = 1
     def robot_check(player):
+        nonlocal i
         try:
             player.delay = 100
-            if 0:
-                robot.show_all_loop(player)
+            if 1:
+                print("loop")
+                player.robot.show_all_loop(player)
+                if not aplay.is_playing():
+                    print("play")
+                    aplay.play("/sd/audio/" + str(i) + ".wav")
+                    print("end")
+                    i = i + 1
+                    if i > 8:
+                        i = 1
                 return  # 测试动画的模式
 
-            robot.social.sub(1)          # 3 秒一次的社交衰减
+            player.robot.social.sub(1)          # 3 秒一次的社交衰减
             player.fsm.update()          # 驱动状态机
 
             # 调试打印
             print("fsm:{}, emocards:{}, current:{}, life:{}, social:{}".format(
                 player.fsm._state.__class__.__name__,
                 player.emocards.current_mapped,
-                robot.current.get(),
-                robot.life.get(),
-                robot.social.get()))
+                player.robot.current.get(),
+                player.robot.life.get(),
+                player.robot.social.get()))
 
             player.emocards.reset()      # 稳定情绪
         except Exception as e:

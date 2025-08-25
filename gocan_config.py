@@ -1,3 +1,6 @@
+from gocan import Number, aplay, AnimationPlayer
+import os, time
+
 Twinkle_Melody = [
     262, 40, 0, 3,
     262, 40, 0, 3,
@@ -104,7 +107,7 @@ class Robot:
             "Anger": {"arousal": 0.5, "pleasantness": -0.5}  # 愤怒
         }
 
-        self.base_path = "/sd/base"
+        self.base_path = "/sd/test"
         # self.current_list = ["deep", "sleep", "awake", "bored", "express"]
 
         self.emocards_list = ["shangxin", "xiyue", "nushi", "kaixin"]
@@ -172,33 +175,33 @@ class Robot:
             self._switch_to_idx(player, next_idx)
 
     # ---------- 内部工具 ----------
-    def _switch_to_idx(self, player, idx: int):
+    def _switch_to_idx(self, player: AnimationPlayer, idx: int):
         """真正切换到指定 idx 的目录并记录时间。"""
-        anim_dir = self._show_all_dirs[idx]
-        anim_path = self.get_path(anim_dir)
+        anim_file_path = self.get_path(self._show_all_dirs[idx])
 
-        player.start(directory=anim_path, loop=5)
+        player.start(file_path=anim_file_path, loop=5)
         self._show_all_idx = idx
         self._show_all_start_ts = time.time()
         
     def trigger_all(self, player, directory, loop, audio=None, rpc=None):
-        if player.emocards.current_mapped == (1, 1):
-            print("1,1,0,shangxin")
-        elif player.emocards.current_mapped == (1, 3):
-            print("1,3,1,xiyue")
-        elif player.emocards.current_mapped == (3, 1):
-            print("3,1,2,nushi")
-        elif player.emocards.current_mapped == (3, 3):
-            print("3,3,3,kaixin")
-            player.start(directory=self.get_path(self.emocards_list[]), loop=loop)
-        else:
-            player.start(directory=directory, loop=loop)
+        # if player.emocards.current_mapped == (1, 1):
+        #     print("1,1,0,shangxin")
+        # elif player.emocards.current_mapped == (1, 3):
+        #     print("1,3,1,xiyue")
+        # elif player.emocards.current_mapped == (3, 1):
+        #     print("3,1,2,nushi")
+        # elif player.emocards.current_mapped == (3, 3):
+        #     print("3,3,3,kaixin")
+        #     player.start(directory=self.get_path(self.emocards_list[4]), loop=loop)
+        # else:
+        # player.start(directory=directory, loop=loop)
         if audio:
             print(audio)
             aplay.play(audio) # '/sd/audio/1.wav'
-        if rpc:
-            print(rpc)
-            player.uart_call(rpc)
+        # 使用 body_vibrate body_play body_poweroff 进行 jsonrpc
+        # if rpc:
+        #     print(rpc)
+        #     player.uart_call(rpc)
 
     def event_express(self, player, event):
         if event.data["action"] == "Face" or event.data["action"] == "shake": # 区分走路和运动。

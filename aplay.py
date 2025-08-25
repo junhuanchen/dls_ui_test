@@ -21,7 +21,7 @@ import time
 # tmp = GPIO(GPIO.GPIO0, GPIO.OUT); tmp.value(0)
 # tmp = GPIO(GPIO.GPIO1, GPIO.OUT); tmp.value(1)
 
-fm.register(12, fm.fpioa.I2S0_OUT_D1, force=True)
+fm.register(11, fm.fpioa.I2S0_OUT_D1, force=True)
 fm.register(13, fm.fpioa.I2S0_SCLK,   force=True)
 fm.register(10, fm.fpioa.I2S0_WS,     force=True)
 
@@ -75,9 +75,9 @@ def is_playing():
 def tick():
     """需要在 while True: 中周期性调用"""
     global _player
+    print("tick", _player)
     if _player is None:
         return
-
     ret = _player.play()
     if ret is None:          # 格式错误
         _stop()
