@@ -89,7 +89,7 @@ def app():
                 print("Error parsing JSON: ", e)
         else:
             pass
-    # player.agent.event(250, sensor_check, player)
+    player.agent.event(250, sensor_check, player)
 
     def ai_check(player):
         player.container.decay_events() # 衰减事件
@@ -97,7 +97,7 @@ def app():
             result = camera_ai_manager.get_data()
             # print(result)
             player.container.update_events(result['detections'])
-    # player.agent.event(250, ai_check, player)
+    player.agent.event(250, ai_check, player)
 
     def event_check(player):
         # kpu.memtest()
@@ -125,7 +125,7 @@ def app():
                 # 情感需求处理
                 player.emocards.update(player.robot.event_effects, event.data["action"])
 
-    # player.agent.event(1000, event_check, player)
+    player.agent.event(1000, event_check, player)
     
     # =============== 状态机 ===============
 
@@ -271,7 +271,7 @@ def app():
         nonlocal i
         try:
             player.delay = 100
-            if 1:
+            if 0:
                 player.robot.show_all_loop(player)
                 if not aplay.is_playing():
                     aplay.play("/sd/audio/" + str(i) + ".wav")
