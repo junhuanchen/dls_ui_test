@@ -75,7 +75,7 @@ def is_playing():
 def tick():
     """需要在 while True: 中周期性调用"""
     global _player
-    print("tick", _player)
+    # print("tick", _player)
     if _player is None:
         return
     ret = _player.play()

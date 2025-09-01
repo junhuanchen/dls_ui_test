@@ -272,12 +272,9 @@ def app():
         try:
             player.delay = 100
             if 1:
-                print("loop")
                 player.robot.show_all_loop(player)
                 if not aplay.is_playing():
-                    print("play")
                     aplay.play("/sd/audio/" + str(i) + ".wav")
-                    print("end")
                     i = i + 1
                     if i > 8:
                         i = 1

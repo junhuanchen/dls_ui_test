@@ -445,12 +445,11 @@ class AnimationPlayer:
     def _load(self, file_path, start_index=0, end_index=None):
         # todo start_index=0, end_index=None
         import KPU
-        with open(file_path) as f:
-            print("load")
-            tmp = f.read()
-            print(len(tmp))
-            lottie.load(tmp)
-            print("load ok")
+        f = open(file_path)
+        tmp = f.read()
+        lottie.load(tmp)
+        f.close()
+        KPU.memtest()
         self.current_index = 0
         self.current_file = file_path
         self.total = lottie.total()
