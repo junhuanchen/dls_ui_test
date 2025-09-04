@@ -417,6 +417,8 @@ class AnimationPlayer:
         self.task_flag = None
         self.agent = agent()
         from fpioa_manager import fm
+        # fm.register(25, fm.fpioa.UART1_TX, force=True)
+        # fm.register(24, fm.fpioa.UART1_RX, force=True)
         fm.register(20, fm.fpioa.UART1_TX, force=True)
         fm.register(21, fm.fpioa.UART1_RX, force=True)
         from machine import UART
@@ -515,6 +517,7 @@ class AnimationPlayer:
                     if self._repeat_total > 0:       # 还需继续
                         self.current_index = 0
                     else:                            # 全部播完
+                        print("Animation finished.")
                         self.state = PlayerState.IDLE
 
                 # print("time: %s/%s, Index: %s/%s" % (time.ticks_ms(), time.ticks_ms() - run_time, self.current_index, self.total))
@@ -544,13 +547,13 @@ class AnimationPlayer:
     def get_current_status(self):
         """获取当前播放状态"""
         status = {
-            "current_directory": self.current_directory,
+            "current_directory": self.current_file,
             "current_file": None,
             "current_index": self.current_index,
-            "total_files": len(self.files),
+            "total_files": self.total,
             "is_playing": self.state == PlayerState.PLAYING,  # 是否正在播放
         }
-        if self.files and self.current_index < len(self.files):
+        if self.total and self.current_index < self.total:
             status["current_file"] = self.files[self.current_index]
         return status
     
