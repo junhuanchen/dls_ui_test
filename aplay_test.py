@@ -1,5 +1,5 @@
 
-import aplay as player
+import gocan_aplay as player
 
 while True:
     player.play('/sd/audio/1.wav')

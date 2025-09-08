@@ -1,4 +1,3 @@
-from gocan import aplay
 
 class Robot:
     def __init__(self):
@@ -24,6 +23,10 @@ class Robot:
         print("trigger_all", show_type)
         ret = self.get_path(show_type)
         player.start(file_path=ret[0], loop=loop)
-        if ret[1] and not aplay.is_playing():
+        # from gocan import aplay
+        aplay = locals()['gocan_aplay']
+        if aplay.is_playing():
+            aplay.stop()
+        if ret[1]:
             print(ret[1])
             aplay.play(ret[1])
