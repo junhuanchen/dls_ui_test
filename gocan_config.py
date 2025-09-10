@@ -8,7 +8,10 @@ class Robot:
         self.show_face = ["haixiu.json", ""]
         self.show_down = ["shuijiao.json", "diluo.wav"]
         self.show_charge = ["chongdian.json", "dianliangdi.wav"]
-        self.show_touch = ["sajiao.json", "huanxing.wav"]
+        self.show_touch0 = ["sajiao.json", "huanxing.wav"]
+        self.show_touch1 = ["yumen.json", "pingchang.wav"]
+        self.show_touch2 = ["zhenjing.json", "shengqi.wav"]
+
         self.show_fall = ["zhenjing.json", "shengqi.wav"]
         
     def get_path(self, obj=["", ""]):
