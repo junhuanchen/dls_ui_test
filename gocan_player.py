@@ -52,14 +52,10 @@ def app():
     player.container = EventContainer()
     player.robot = Robot()
 
-    def aplay_tick():
-        aplay.tick()
-
-    player.agent.event(250, aplay_tick, None)
-
     def camera_tick():
         global status
         # camera_ai_manager.task_select += 1
+        aplay.tick()
         if aplay.is_playing():
             return
         img = sensor.snapshot()
@@ -151,7 +147,136 @@ def app():
     #         print("touch")
     #         player.robot.trigger_all(player, player.robot.show_face)
     # player.agent.event(100, tp_touch, player)
+    # =============== 状态机 ===============
 
+    class RobotFSM:
+        def __init__(self, robot, player):
+            self.robot  = robot
+            self.player = player
+            self._state_map = {
+                0: DeepSleepState(self, robot, player),
+                1: SleepState(self, robot, player),
+                2: AwakeState(self, robot, player),
+                3: BoredState(self, robot, player),
+                4: ExpressState(self, robot, player),
+            }
+            self._state = self._state_map[2]   # 默认 awake
+            self._force_code = None            # 强制跳转标志
+            self._state.enter()
+
+        def transit(self, code):
+            """外部强制跳转到指定状态"""
+            if code in self._state_map:
+                self._force_code = code
+
+        def update(self):
+            # 优先处理强制跳转
+            if self._force_code is not None and self._force_code != self._state.code:
+                self._state.exit()
+                self._state = self._state_map[self._force_code]
+                self._state.enter()
+                self._force_code = None
+                self._state.tick()
+                return
+
+            # 正常条件转移
+            next_code = self._state.next_code()
+            if next_code is not None and next_code != self._state.code:
+                self._state.exit()
+                self._state = self._state_map[next_code]
+                self._state.enter()
+            self._state.tick()
+
+    # ===================== 状态基类 =====================
+    class StateBase:
+        code = -1
+        def __init__(self, fsm, robot, player):
+            self.fsm = fsm
+            self.r   = robot
+            self.p   = player
+        def enter(self):
+            self.r.current.set(self.code)  # 同步状态码
+        def exit(self): pass
+        def tick(self): pass
+        def next_code(self): return None
+
+    # ===================== DeepSleepState =====================
+    class DeepSleepState(StateBase):
+        code = 0
+
+        def next_code(self):
+            # 避免立即醒来：改为 social>5 且至少待 3 秒
+            if self.r.social.get() > 5:
+                return 2
+            return None
+
+    # ===================== SleepState =====================
+    class SleepState(StateBase):
+        code = 1
+
+        def next_code(self):
+            if self.p.is_paused():
+                return 0
+            return None
+
+    # ===================== AwakeState =====================
+    class AwakeState(StateBase):
+        code = 2
+            
+        def next_code(self):
+            if self.r.life.get() < 1 or self.r.social.get() < 1:
+                return 1
+            if self.r.social.get() > 4:
+                return 3
+            return None
+
+    # ===================== BoredState =====================
+    class BoredState(StateBase):
+        code = 3
+
+        def next_code(self):
+            if self.r.life.get() < 1 or self.r.social.get() < 1:
+                return 1
+            if self.r.social.get() <= 5:
+                return 2
+            if self.r.social.get() >= 8:
+                return 4
+            return None
+
+    # ===================== ExpressState =====================
+    class ExpressState(StateBase):
+        code = 4
+
+        def next_code(self):
+            if self.r.life.get() < 1 or self.r.social.get() < 1:
+                return 1
+            # 当 social 降到 ≤8 时才回到 Bored
+            if self.r.social.get() < 8:
+                return 3
+            return None
+
+    # ------------------ 初始化与定时器 ------------------
+    player.fsm = RobotFSM(player.robot, player)
+    def robot_check(player):
+        try:
+
+            player.robot.social.sub(1)          # 3 秒一次的社交衰减
+            player.emocards.reset()      # 稳定情绪值
+            player.fsm.update()          # 驱动状态机
+
+            # 调试打印
+            # print("fsm:{}, emocards:{}, current:{}, life:{}, social:{}".format(
+            #     player.fsm._state.__class__.__name__,
+            #     player.emocards.current_mapped,
+            #     robot.current.get(),
+            #     robot.life.get(),
+            #     robot.social.get()))
+
+        except Exception as e:
+            import sys
+            sys.print_exception(e)
+
+    player.agent.event(3000, robot_check, player)
     while True:
         player.play()
         
