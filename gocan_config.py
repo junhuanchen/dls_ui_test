@@ -1,5 +1,10 @@
 import time
 
+MOTOR = [
+    255, 300,
+    0, 0
+]
+
 class Robot:
     def __init__(self, locals):
         self.locals = locals
@@ -24,7 +29,7 @@ class Robot:
         self.show_path = ["/sd/lottie", "/sd/audio"]
         self.current_list = ["wuliao.json", "wunai.json", "jingzhizhuangtai.json", "liezuidaxiao.json", "aixinyan.json"] # 关机、休眠、平静，喜悦，开心
         self.show_up = ["liezuidaxiao.json", "liezuidaxiao.wav"]
-        self.show_shake = ["haoqi.json", "yonghaoqili.wav"]
+        self.show_shake = ["haoqi.json", "yonghaoqili.wav", MOTOR]
         self.show_down = ["jingyin.json", "jingyin.wav"]
         self.show_charge = ["chongdian.json", "dianliangdi.wav"]
         self.show_touch0 = ["xinglaihouwunai.json", "xinglaihouwunai.wav"]
@@ -33,12 +38,12 @@ class Robot:
 
         self.show_fall = ["shengqi.json", "shengqi.wav"]
         
-    def get_path(self, obj=["", ""]):
-        ret = ["", ""]
-        if obj[0] != "":
-            ret[0] = "{}/{}".format(self.show_path[0], obj[0])
-        if obj[1] != "":
-            ret[1] = "{}/{}".format(self.show_path[1], obj[1])
+    def get_path(self, obj):
+        ret = list(obj)
+        for i in range(len(ret)):
+            if i <= 1:
+                ret[i] = "{}/{}".format(self.show_path[i], ret[i])
+        ret += (4 - len(ret)) * [None]
         return ret
         
     def trigger_all(self, player, show_type, loop=1):
@@ -52,6 +57,10 @@ class Robot:
         if ret[1]:
             print(ret[1])
             aplay.play(ret[1])
+        if ret[2]:
+            player.body_vibrate(ret[2])
+        if ret[3]:
+            player.body_play(ret[3])
 
 
 

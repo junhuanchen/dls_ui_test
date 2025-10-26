@@ -11,10 +11,22 @@ EventContainer = locals()['EventContainer']
 Emocards = locals()['Emocards']
 aplay = locals()['gocan_aplay']
 touch = locals()['touch']
+lottie = locals()['lottie']
+
+x_lines = [130, 190]
+y_lines = [90, 150]
+targets = [(-20, 20), (-20, 0), (-20, -20),
+           (  0, 20), (  0, 0), (  0, -20),
+           ( 20, 20), ( 20, 0), ( 20, -20)]
+def get_9_dir(x, y):
+    col = 2 if x >= x_lines[1] else (1 if x >= x_lines[0] else 0)
+    row = 2 if y >= y_lines[1] else (1 if y >= y_lines[0] else 0)
+    return col + row * 3
 
 from gocan_config import Robot, RobotFSM
 
 status = 0 # 0 init, 1 face, 2 uart, 3 touch
+face_tick = 0
 
 def app():
 
@@ -24,7 +36,7 @@ def app():
         if self.is_paused():
             print("paused")
             status = 0
-            player.robot.trigger_all(player, [player.robot.current_list[player.fsm._state.code], ""])
+            player.robot.trigger_all(player, [player.robot.current_list[player.fsm._state.code]])
 
     player = AnimationPlayer(delay=125, callback=robot_ai_callback)  # 设置期望延时播放间隔为125ms
 
@@ -33,7 +45,7 @@ def app():
     player.robot = Robot(locals())
 
     def camera_tick():
-        global status
+        global status, face_tick
         aplay.tick()
         if aplay.is_playing():
             return
@@ -43,12 +55,18 @@ def app():
         del img
         if result['have_object']:
             del result['have_object']
+            # print(int(result["rect"][2]/2 + result["rect"][0]), int(result["rect"][3]/2 + result["rect"][1]))
+            face_tick = time.ticks_ms()
+            ret = get_9_dir(int(result["rect"][2]/2 + result["rect"][0]), int(result["rect"][3]/2 + result["rect"][1]))
+            lottie.rotation(targets[ret][0], targets[ret][1], 1)
             player.container.update_events(result['detections'])
             for key, value in player.container.get_events().items():
                 if value > 0.15: # 连续平均阈值
-                    print(value)
+                    # print(value)
                     player.robot.social.add(2)
                     player.emocards.update(player.robot.event_effects, "Face")
+        elif time.ticks_ms() - face_tick > 1000:
+            lottie.rotation(0, 0, 1)
 
     player.agent.event(250, camera_tick, None)
 
@@ -58,16 +76,19 @@ def app():
         if player.uart.any():
             read_data = player.uart.readline()
             print("recv = ", read_data)
-            if status <= 2:
-                try:
-                    tmp = getattr(player.robot, 'show_' + read_data.decode('utf-8'))
-                    player.emocards.update(player.robot.event_effects, read_data.decode('utf-8'))
+            try:
+                read_data = read_data.decode('utf-8')
+                if read_data.isalpha() and status <= 2:
+                    tmp = getattr(player.robot, 'show_' + read_data)
+                    player.emocards.update(player.robot.event_effects, read_data)
                     status = 2
                     print("uart")
                     player.robot.social.add(2)
                     player.robot.trigger_all(player, tmp, loop=2)
-                except Exception as e:
-                    print("Error parsing JSON: ", e)
+                elif read_data.isdigit():
+                    player.robot.life.set(int(read_data))
+            except Exception as e:
+                print("Error parsing JSON: ", e)
         else:
             pass
     player.agent.event(250, uart_check, player)
