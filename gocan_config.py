@@ -29,7 +29,7 @@ class Robot:
         self.show_path = ["/sd/lottie", "/sd/audio"]
         self.current_list = ["wuliao.json", "wunai.json", "jingzhizhuangtai.json", "liezuidaxiao.json", "aixinyan.json"] # 关机、休眠、平静，喜悦，开心
         self.show_up = ["liezuidaxiao.json", "liezuidaxiao.wav"]
-        self.show_shake = ["haoqi.json", "yonghaoqili.wav", MOTOR]
+        self.show_shake = ["haoqi.json", "haoqi.wav", MOTOR]
         self.show_down = ["jingyin.json", "jingyin.wav"]
         self.show_charge = ["chongdian.json", "dianliangdi.wav"]
         self.show_touch0 = ["xinglaihouwunai.json", "xinglaihouwunai.wav"]
@@ -47,8 +47,8 @@ class Robot:
         return ret
         
     def trigger_all(self, player, show_type, loop=1):
-        print("trigger_all", show_type)
         ret = self.get_path(show_type)
+        print("trigger_all", ret)
         player.start(file_path=ret[0], loop=loop)
         # from gocan import aplay
         aplay = locals()['gocan_aplay']
@@ -120,6 +120,9 @@ class StateBase:
 # ===================== DeepSleepState =====================
 class DeepSleepState(StateBase):
     code = 0
+    def enter(self):
+        self.p.body_poweroff(3000)
+        return super().enter()
 
     def next_code(self):
         # 避免立即醒来：改为 social>5 且至少待 3 秒
